@@ -6,9 +6,7 @@ It adds a **Photos to PDF** button to the job card, on the web and in the app. T
 
 Each page is just the photo, filling the page. The page is shaped to fit the photo, and there is no text or anything else.
 
-Once it's saved, the popup opens the PDF: just its pages, with **Make another**, **Download** and **Done** at the bottom. If any photos couldn't be read, a note above the buttons says which were left out.
-
-**Download** saves the same PDF to the computer or phone. ServiceM8's popup on the web is sandboxed and may block downloads, so a note under the buttons says to open the PDF from the job diary instead if nothing happens. In the phone app, ServiceM8 always opens add-on buttons in a browser window, and the manifest can't change that; it's a normal browser there, so downloading usually works.
+Once it's saved, the popup opens the PDF: just its pages, with **Make another** and **Done** at the bottom. If any photos couldn't be read, a note above the buttons says which were left out. To get a copy of the PDF, open it from the job diary.
 
 **Picking photos:**
 - Tap or click a photo to select it, and again to unselect it.
@@ -29,6 +27,7 @@ Once it's saved, the popup opens the PDF: just its pages, with **Make another**,
 | --- | --- |
 | `manifest.json` | The add-on manifest. It adds the **Photos to PDF** job card button on the web and in the app, and sets the permissions it needs. |
 | `index.js` | The function code: Node.js 24 in one file, with no dependencies. |
+| `icon.png` | The job card button's icon, linked from `manifest.json`. |
 | `package.json` | Only for running the tests locally; ServiceM8 doesn't use it. |
 | `test/` | Tests for the function's server side (no ServiceM8 account needed). |
 
@@ -66,4 +65,4 @@ You can also deploy from a terminal with ServiceM8's [Addon Kit](https://develop
 
 - **Who the PDF shows as in the diary.** It asks to save as the staff member. If ServiceM8 refuses that, it saves as the add-on.
 - **Whether the browser talks to the API directly.** In the add-on's logs, `photos_to_pdf_photo` / `photos_to_pdf_save` entries mean it's going through the function. That works, but the PDF is then capped at about 3.5 MB.
-- **Icon.** `iconURL` is still ServiceM8's sample icon. Swap in your own, publicly hosted at 256×256 or larger.
+- **Icons.** The Add-on Store icon is uploaded to the store listing in ServiceM8, so the manifest has no top-level `iconURL`. The job card button's `iconURL` (in both actions) is `icon.png` from this repo, served by jsDelivr, so the repo must stay public. jsDelivr caches it, so a changed icon can take up to a day to show. ServiceM8's own upload links expire after a day, so they can't be used here.

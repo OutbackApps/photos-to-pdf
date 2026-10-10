@@ -1,26 +1,25 @@
 {
-  "$schema": "https://api.servicem8.com/api_1.0/addonsdk/manifest-schema/v1.json",
-  "name": "Photos to PDF",
-  "version": "1.0",
-  "iconURL": "https://go.servicem8.com/images/addon-sdk-sample-icon.png",
-  "oauth": {
-    "scope": "read_jobs read_attachments manage_attachments"
-  },
-  "actions": [
-    {
-      "name": "Photos to PDF",
-      "type": "online",
-      "entity": "job",
-      "iconURL": "https://go.servicem8.com/images/addon-sdk-sample-icon.png",
-      "event": "photos_to_pdf",
-      "location": "modal"
+    "$schema": "https://api.servicem8.com/api_1.0/addonsdk/manifest-schema/v1.json",
+    "name": "Photos to PDF",
+    "version": "1.1",
+    "oauth": {
+        "scope": "read_jobs read_attachments manage_attachments"
     },
-    {
-      "name": "Photos to PDF",
-      "type": "app",
-      "entity": "job",
-      "iconURL": "https://go.servicem8.com/images/addon-sdk-sample-icon.png",
-      "event": "photos_to_pdf"
-    }
-  ]
+    "actions": [
+        {
+            "name": "Photos to PDF",
+            "type": "online",
+            "entity": "job",
+            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@main/icon.png",
+            "event": "photos_to_pdf",
+            "location": "modal"
+        },
+        {
+            "name": "Photos to PDF",
+            "type": "app",
+            "entity": "job",
+            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@main/icon.png",
+            "event": "photos_to_pdf"
+        }
+    ]
 }
