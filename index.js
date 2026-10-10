@@ -258,7 +258,7 @@ ${script ? `<script>${script}</script>` : ''}
 }
 
 function page(event) {
-  const jobUUID = needUuid((event.eventArgs || {}).jobUUID, 'job');
+  const jobUUID = needUuid(event.eventArgs?.jobUUID, 'job');
   const boot = { jobUUID, staffUUID: event.auth.staffUUID || null, token: event.auth.accessToken };
   log('info', 'Opened Photos to PDF', { accountUUID: event.auth.accountUUID, jobUUID });
   return shell("Photos to PDF", '<div id="app"></div>', `(${photosToPdfPage.toString()})(${scriptJson(boot)});`);
@@ -282,11 +282,11 @@ function photosToPdfPage(boot) {
   } catch (e) { }
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const errText = (err) => (err && err.message) || String(err);
+  const errText = (err) => err?.message || String(err);
 
   /** Call this function's server side; replies are JSON strings ({ error } when it failed). */
   async function call(eventName, args) {
-    let raw = await client.invoke(eventName, Object.assign({ jobUUID: boot.jobUUID }, args));
+    let raw = await client.invoke(eventName, { jobUUID: boot.jobUUID, ...args });
     if (raw && typeof raw === 'object' && 'eventResponse' in raw) raw = raw.eventResponse;
     let data = raw;
     if (typeof raw === 'string') {
@@ -315,7 +315,7 @@ function photosToPdfPage(boot) {
   async function api(path, init, retried) {
     init = init || {};
     const t = await apiToken();
-    const res = await fetch(API + path, Object.assign({}, init, { headers: Object.assign({}, init.headers, { authorization: 'Bearer ' + t }) }));
+    const res = await fetch(API + path, { ...init, headers: { ...init.headers, authorization: 'Bearer ' + t } });
     if (res.status === 401 && !retried) {
       await apiToken(true);
       return api(path, init, true);
@@ -399,7 +399,7 @@ function photosToPdfPage(boot) {
 
     let deviceCount = 0;
     let diaryQueue = Promise.resolve(); // one upload at a time
-    const isImage = (f) => /^image\//.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name);
+    const isImage = (f) => f.type.startsWith('image/') || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name);
     const DIARY_LABEL = { saving: 'Adding to diary…', saved: 'Added to diary', failed: 'Not added to diary' };
 
     function addFiles(files) {
@@ -409,7 +409,7 @@ function photosToPdfPage(boot) {
         const p = { uuid: `device-${++deviceCount}`, name: file.name || `Photo ${deviceCount}.jpg`, file, diary: 'saving' };
         photos.push(p);
         selected.add(p.uuid);
-        addToDiary(p);
+        void addToDiary(p); // it records its own failures on the tile
       });
       render();
       // Show the new ones.
@@ -423,7 +423,8 @@ function photosToPdfPage(boot) {
         try {
           await uploadAttachment(p.name, p.file, 'photo');
           p.diary = 'saved';
-        } catch (err) {
+        } catch {
+          // Shown on the tile; finishDiary() tries it again when the PDF is saved.
           p.diary = 'failed';
         }
         update();
@@ -438,7 +439,7 @@ function photosToPdfPage(boot) {
       return photos.filter((p) => p.diary === 'failed').map((p) => p.name);
     }
 
-    const caption = (p) => [p.name, p.timestamp && p.timestamp.slice(0, 16)].filter(Boolean).join('\n');
+    const caption = (p) => [p.name, p.timestamp?.slice(0, 16)].filter(Boolean).join('\n');
     const touchScreen = matchMedia('(pointer: coarse)').matches;
     const busy = () => state.step === 'making' || state.step === 'saving';
 
@@ -526,12 +527,13 @@ function photosToPdfPage(boot) {
         app.querySelectorAll('.ro').forEach((el) => thumb(el, photos[+el.dataset.i]));
         reorderable(app.querySelector('.ogrid'));
       } else {
+        const several = touchScreen
+          ? 'Swipe sideways across photos to select several.'
+          : 'Drag a box around photos or shift-click to select several, or Ctrl+A for all.';
+        const hint = photos.length ? `Tap photos to put them in the PDF, one per page. ${several}` : 'No photos on this job yet. Add some from this device.';
         app.innerHTML = `${header}
           <div class="bar">
-            <span class="muted">${photos.length
-            ? `Tap photos to put them in the PDF, one per page. ${touchScreen ? 'Swipe sideways across photos to select several.' : 'Drag a box around photos or shift-click to select several, or Ctrl+A for all.'}`
-            : 'No photos on this job yet. Add some from this device.'
-          }</span>
+            <span class="muted">${hint}</span>
             <button class="link" id="all" ${photos.length ? '' : 'hidden'}></button>
           </div>
           <ul class="grid">
@@ -632,14 +634,14 @@ function photosToPdfPage(boot) {
       app.querySelector('#reorder').disabled = n < 2 || busy();
       const btn = app.querySelector('#save');
       btn.disabled = !n || busy();
-      btn.textContent =
-        state.step === 'making'
-          ? `Making PDF: photo ${Math.min(state.done + 1, n)} of ${n}…`
-          : state.step === 'saving'
-            ? 'Saving to the job diary…'
-            : n
-              ? `Save PDF of ${n} ${n === 1 ? 'photo' : 'photos'} to job diary`
-              : 'Select photos for the PDF';
+      btn.textContent = saveLabel(n);
+    }
+
+    function saveLabel(n) {
+      if (state.step === 'making') return `Making PDF: photo ${Math.min(state.done + 1, n)} of ${n}…`;
+      if (state.step === 'saving') return 'Saving to the job diary…';
+      if (!n) return 'Select photos for the PDF';
+      return `Save PDF of ${n} ${n === 1 ? 'photo' : 'photos'} to job diary`;
     }
 
     /**
@@ -691,7 +693,7 @@ function photosToPdfPage(boot) {
           }
         }
         const over = document.elementFromPoint(e.clientX, e.clientY);
-        const el = over && over.closest('.grid .ph');
+        const el = over?.closest('.grid .ph');
         if (!el) return;
         restore(swipe.before);
         setRange(swipe.start, at(el), swipe.on);
@@ -699,7 +701,7 @@ function photosToPdfPage(boot) {
         update();
       });
       grid.addEventListener('pointerup', () => {
-        if (swipe && swipe.active) dragged = true;
+        if (swipe?.active) dragged = true;
         swipe = null;
       });
       grid.addEventListener('pointercancel', () => {
@@ -817,12 +819,18 @@ function photosToPdfPage(boot) {
       update();
     }
 
+    /** How far to scroll while the pointer is held within `margin` px of the top or bottom (above the footer). */
+    function edgeStep(y, margin, speed) {
+      const bottomEdge = innerHeight - (app.querySelector('.foot')?.offsetHeight ?? 0);
+      if (y > bottomEdge - margin) return speed;
+      if (y < margin) return -speed;
+      return 0;
+    }
+
     // Holding the pointer near the top or bottom while drawing scrolls the page.
     function scrollLoop() {
-      if (!marquee || !marquee.active) return;
-      const foot = app.querySelector('.foot');
-      const bottomEdge = innerHeight - (foot ? foot.offsetHeight : 0);
-      const step = marquee.cy > bottomEdge - 30 ? 14 : marquee.cy < 30 ? -14 : 0;
+      if (!marquee?.active) return;
+      const step = edgeStep(marquee.cy, 30, 14);
       if (step) {
         const before = scrollY;
         scrollBy(0, step);
@@ -842,7 +850,7 @@ function photosToPdfPage(boot) {
 
       ul.addEventListener('contextmenu', (e) => e.preventDefault()); // long-press menus
       // Once a photo's lifted, a finger moving mustn't scroll the page.
-      ul.addEventListener('touchmove', (e) => drag && drag.lifted && e.preventDefault(), { passive: false });
+      ul.addEventListener('touchmove', (e) => drag?.lifted && e.preventDefault(), { passive: false });
 
       ul.addEventListener('pointerdown', (e) => {
         const li = e.target.closest('li');
@@ -891,7 +899,7 @@ function photosToPdfPage(boot) {
         drag.ghost.style.left = `${drag.cx - drag.offX}px`;
         drag.ghost.style.top = `${drag.cy - drag.offY}px`;
         const over = document.elementFromPoint(drag.cx, drag.cy);
-        const target = over && over.closest('.ogrid li');
+        const target = over?.closest('.ogrid li');
         if (!target || target === drag.li) return;
         const list = items();
         ul.insertBefore(drag.li, list.indexOf(drag.li) < list.indexOf(target) ? target.nextSibling : target);
@@ -901,10 +909,8 @@ function photosToPdfPage(boot) {
 
       // Holding near the top or bottom scrolls, for long lists.
       function edgeScroll() {
-        if (!drag || !drag.lifted) return;
-        const foot = app.querySelector('.foot');
-        const bottomEdge = innerHeight - (foot ? foot.offsetHeight : 0);
-        const step = drag.cy > bottomEdge - 40 ? 12 : drag.cy < 40 ? -12 : 0;
+        if (!drag?.lifted) return;
+        const step = edgeStep(drag.cy, 40, 12);
         if (step) {
           const before = scrollY;
           scrollBy(0, step);
@@ -1108,7 +1114,8 @@ function photosToPdfPage(boot) {
           const jpeg = await toJpeg(await photoBlob(p), budget);
           used += jpeg.data.length;
           pages.push(jpeg);
-        } catch (err) {
+        } catch {
+          // One unreadable photo shouldn't stop the PDF: it's left out and listed when saved.
           failed.push(p.name);
         }
         onProgress(i + 1);
