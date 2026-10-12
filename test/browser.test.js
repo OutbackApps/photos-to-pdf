@@ -87,7 +87,7 @@ function fakeServiceM8(photos) {
 }
 
 /** In the page: ServiceM8's API from the browser (or, not `direct`, refused as CORS would). */
-function pageApi(direct, files, slowPhotos, limit) {
+function pageApi(direct, files, slowPhotos, limit, failOnce) {
     window.__posts = [];
     window.__closed = false;
     const real = window.fetch;
@@ -104,6 +104,10 @@ function pageApi(direct, files, slowPhotos, limit) {
             if (slowPhotos && !name.endsWith('.pdf')) await new Promise((r) => setTimeout(r, 600));
             const data = new Uint8Array(await init.body.get('file').arrayBuffer());
             if (limit && data.length > limit) return new Response('Request Entity Too Large', { status: 413 });
+            if (failOnce && name.includes(failOnce) && !window.__failed) {
+                window.__failed = true;
+                return new Response('Server error', { status: 500 });
+            }
             let s = '';
             for (let i = 0; i < data.length; i += 0x8000) s += String.fromCodePoint(...data.subarray(i, i + 0x8000));
             window.__posts.push({ name, b64: btoa(s) });
@@ -185,7 +189,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
     }
 
     /** The popup for a job with these photos, as ServiceM8 opens it. */
-    async function open(photos, { direct = true, slowPhotos = false, storageLetsBrowser = false, limit = 0, width = 900 } = {}) {
+    async function open(photos, { direct = true, slowPhotos = false, storageLetsBrowser = false, limit = 0, failOnce = '', width = 900 } = {}) {
         const fake = fakeServiceM8(photos);
         globalThis.fetch = (url, init) => (/servicem8\.com|storage\.example/.test(String(url)) ? fake.fetch(url, init) : realFetch(url, init));
         const context = await browser.createBrowserContext(); // its own storage: "photos per PDF" starts at the default
@@ -211,7 +215,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
             req.respond({ contentType: 'image/jpeg', body, headers: storageLetsBrowser ? { 'access-control-allow-origin': '*' } : {} });
         });
         const files = direct ? Object.fromEntries(photos.map((p) => [p.uuid, p.bytes.toString('base64')])) : {};
-        await page.evaluateOnNewDocument(pageApi, direct, files, slowPhotos, limit);
+        await page.evaluateOnNewDocument(pageApi, direct, files, slowPhotos, limit, failOnce);
         await page.goto('https://test.local/');
         await page.waitForSelector('.groups .ph');
         return { page, context, fake, errors, invoked, fetchedFromStorage };
@@ -394,7 +398,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
             await page.click('#save');
             await page.waitForSelector('.done', { timeout: 30000 });
             const posts = await page.evaluate(() => window.__posts);
-            assert.deepEqual(posts.map((p) => p.name), ['photos-to-pdf-device.jpg', 'Job 1042 Photos - PO 77 (1 of 2).pdf', 'Job 1042 Photos - PO 77 (2 of 2).pdf']);
+            assert.deepEqual(posts.map((p) => p.name), ['photos-to-pdf-device.jpg', 'Job #1042 Photos - PO 77 (1 of 2).pdf', 'Job #1042 Photos - PO 77 (2 of 2).pdf']);
             assert.match(await text(page, '.done-reopen'), /Reopen the job/);
             assert.equal(await page.evaluate(() => window.__closed), false); // only Done closes it
             await page.click('#done');
@@ -443,7 +447,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
             await page.waitForSelector('.done', { timeout: 60000 });
             const posts = await page.evaluate(() => window.__posts);
             assert.ok(posts.length >= 2, `${posts.length} parts`);
-            assert.deepEqual(posts.map((p) => p.name), posts.map((_, k) => `Job 1042 Photos - PO 77 part ${k + 1}.pdf`));
+            assert.deepEqual(posts.map((p) => p.name), posts.map((_, k) => `Job #1042 Photos - PO 77 part ${k + 1}.pdf`));
             const pdfs = posts.map((p) => Buffer.from(p.b64, 'base64'));
             assert.ok(pdfs.every((pdf) => pdf.length <= limit));
             const pages = pdfs.map((pdf) => pdf.toString('latin1').match(/\/Type \/Page /g).length);
@@ -458,6 +462,30 @@ describe.skipIf(!BROWSER)('the popup', () => {
         }
     }, 90000);
 
+    test('saving again after a failure part way through a PDF in parts carries on, without saving parts twice', async () => {
+        const photos = await jobPhotos(['noise', 'noise', 'noise']);
+        const limit = 5 * 1024 * 1024;
+        const { page, context, errors } = await open(photos, { limit, failOnce: 'part 2' });
+        try {
+            await page.click('#save');
+            await page.waitForFunction(() => !document.querySelector('#error').hidden, { timeout: 60000 });
+            assert.match(await text(page, '#error'), /\(500\)/);
+            const before = (await page.evaluate(() => window.__posts)).map((p) => p.name);
+            assert.deepEqual(before, ['Job #1042 Photos - PO 77 part 1.pdf']);
+
+            await page.click('#save');
+            await page.waitForSelector('.done', { timeout: 60000 });
+            const names = (await page.evaluate(() => window.__posts)).map((p) => p.name);
+            assert.deepEqual(names, names.map((_, k) => `Job #1042 Photos - PO 77 part ${k + 1}.pdf`)); // each part once
+            const pages = (await page.evaluate(() => window.__posts)).map((p) => Buffer.from(p.b64, 'base64').toString('latin1').match(/\/Type \/Page /g).length);
+            assert.equal(pages.reduce((a, b) => a + b), 3);
+            assert.deepEqual(await page.$$eval('.done-names li', (els) => els.map((e) => e.textContent)), names);
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 120000);
+
     test('a photo too big for ServiceM8 even on its own is the only one made smaller', async () => {
         const photos = await jobPhotos(['noise', 6]);
         const { page, context, errors } = await open(photos, { limit: 1024 * 1024 });
@@ -466,7 +494,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
             await page.waitForSelector('.done', { timeout: 30000 });
             // Once that photo's smaller, both fit in one PDF again.
             const posts = await page.evaluate(() => window.__posts);
-            assert.deepEqual(posts.map((p) => p.name), ['Job 1042 Photos - PO 77.pdf']);
+            assert.deepEqual(posts.map((p) => p.name), ['Job #1042 Photos - PO 77.pdf']);
             const pdf = Buffer.from(posts[0].b64, 'base64');
             assert.ok(pdf.length <= 1024 * 1024);
             assert.ok(pdf.includes(photos[1].bytes), 'the other photo as it is');
@@ -503,7 +531,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
 
             await page.click('#save');
             await page.waitForSelector('.done', { timeout: 60000 });
-            assert.deepEqual(fake.posts.map((p) => p.name), ['Job 1042 Photos - PO 77.pdf']);
+            assert.deepEqual(fake.posts.map((p) => p.name), ['Job #1042 Photos - PO 77.pdf']);
             const pdf = fake.posts[0].bytes;
             assert.ok(pdf.length < 3.5 * 1024 * 1024, `${pdf.length} bytes`);
             assert.match(await text(page, '.foot'), /made smaller to fit/);

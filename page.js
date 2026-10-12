@@ -852,16 +852,19 @@ ${errText(err)}`; // why, on hover
             return made;
         }
 
-        /** PDFs saved by a save that then failed (photo uuids -> what was saved): saving again skips them. */
+        /**
+         * PDFs saved by a save that then failed (photo uuids -> what was saved): saving again skips them,
+         * and carries on from the next part of one saved in parts part way.
+         */
         const savedBefore = new Map();
 
         /** Makes and saves each PDF in turn, so only one is ever held in memory. */
         async function save() {
             error = null;
             const list = groups.map((g) => g.map(byUuid));
-            // "Job 2 Photos - PO WA123": the job, then its PO number (ServiceM8's label for it) if it has one.
+            // "Job #2 Photos - PO WA123": the job, then its PO number (ServiceM8's label for it) if it has one.
             const po = job.poNumber ? ` - PO ${job.poNumber}` : '';
-            const base = `Job ${job.number || job.uuid.slice(0, 8)} Photos${po}`.replaceAll(/[\\/:*?"<>|]+/g, '_');
+            const base = `Job #${job.number || job.uuid.slice(0, 8)} Photos${po}`.replaceAll(/[\\/:*?"<>|]+/g, '_');
             // Straight to ServiceM8, photos go in as PDF_PHOTO. Through the function, each PDF has to fit its payload limit.
             const maxBytes = direct ? Infinity : RELAY_MAX;
             const pdfs = [];
@@ -870,7 +873,8 @@ ${errText(err)}`; // why, on hover
             // One PDF at a time, each starting when the one before is saved.
             async function next() {
                 if (gi >= list.length) return;
-                const saved = savedBefore.get(list[gi].map((p) => p.uuid).join()) || (await savePdf(list, gi, base, maxBytes));
+                const before = savedBefore.get(list[gi].map((p) => p.uuid).join());
+                const saved = before?.complete ? before : await savePdf(list, gi, base, maxBytes, before);
                 failed.push(...saved.failed);
                 if (saved.pages.length) pdfs.push(saved); // otherwise none of its photos could be read
                 gi++;
@@ -897,8 +901,10 @@ ${errText(err)}`; // why, on hover
         }
 
         /** Makes PDF number `gi` of `list` and adds it to the job diary (in parts, if it's too big for ServiceM8 in one). */
-        async function savePdf(list, gi, base, maxBytes) {
+        async function savePdf(list, gi, base, maxBytes, partWay) {
             const photosIn = list[gi];
+            const saved = partWay || { names: [], done: 0, pages: [], failed: [], shrunk: [], complete: false };
+            savedBefore.set(photosIn.map((p) => p.uuid).join(), saved);
             const progress = (done) => {
                 state = { step: 'making', pdf: gi, of: list.length, n: photosIn.length, done };
                 update();
@@ -906,13 +912,14 @@ ${errText(err)}`; // why, on hover
             progress(0);
             const pdf = await photosPdf(photosIn, maxBytes, progress);
             const name = list.length > 1 ? `${base} (${gi + 1} of ${list.length})` : base;
-            const saved = { names: [], pages: pdf.pages, failed: pdf.failed, shrunk: [] };
+            Object.assign(saved, { pages: pdf.pages, failed: pdf.failed });
             if (pdf.pages.length) {
                 state = { step: 'saving', pdf: gi, of: list.length };
                 update();
-                await uploadInParts(pdf.pages, name, saved);
+                // Pages already saved (in parts, by a save that then failed) aren't saved again.
+                await uploadInParts(pdf.pages.slice(saved.done), name, saved);
             }
-            savedBefore.set(photosIn.map((p) => p.uuid).join(), saved);
+            saved.complete = true;
             return saved;
         }
 
@@ -972,6 +979,7 @@ ${errText(err)}`; // why, on hover
                     if (these.length === 1) await shrinkPage(these[0], saved);
                     return next(); // the same pages again, split to the new limit
                 }
+                saved.done += these.length;
                 rest = rest.slice(these.length);
                 return next();
             }
