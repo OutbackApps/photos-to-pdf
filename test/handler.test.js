@@ -71,7 +71,7 @@ test('photos_to_pdf_photos lists active photos, oldest first', async () => {
             ]),
     });
     const data = parse(await handler(event('photos_to_pdf_photos', { jobUUID: JOB })));
-    assert.deepEqual(data.job, { uuid: JOB, number: '42', workOrder: 'WO-7' });
+    assert.deepEqual(data.job, { uuid: JOB, number: '42', poNumber: 'WO-7' });
     assert.deepEqual(
         data.photos.map((p) => p.uuid),
         ['a', 'b', 'e'],
@@ -148,6 +148,20 @@ test('photos_to_pdf_photo does not send the token to the storage redirect', asyn
     assert.deepEqual(Object.keys(calls[1].init.headers), ['range']);
 });
 
+test('photos_to_pdf_photo_url gives the photo storage link, without fetching the photo', async () => {
+    const calls = mockFetch({
+        '.file': () => new Response(null, { status: 302, headers: { location: 'https://storage.example/photo?sig=abc' } }),
+    });
+    const data = parse(await handler(event('photos_to_pdf_photo_url', { uuid: JOB })));
+    assert.deepEqual(data, { url: 'https://storage.example/photo?sig=abc' });
+    assert.equal(calls.length, 1); // just ServiceM8's redirect: the page fetches the photo itself
+});
+
+test('photos_to_pdf_photo_url is null when ServiceM8 sends the photo itself', async () => {
+    mockFetch({ '.file': () => new Response(new Uint8Array([0xff, 0xd8])) });
+    assert.deepEqual(parse(await handler(event('photos_to_pdf_photo_url', { uuid: JOB }))), { url: null });
+});
+
 test('photos_to_pdf_photo sends a big photo in pieces', async () => {
     const photo = Buffer.alloc(7 * 1024 * 1024 + 5, 7); // more than one function reply can hold
     photo[0] = 0xff;
@@ -177,6 +191,24 @@ test('photos_to_pdf_photo sends a big photo in pieces', async () => {
     }
     assert.deepEqual(ranges, [0, 3 * 1024 * 1024, 6 * 1024 * 1024]);
     assert.ok(Buffer.concat(pieces).equals(photo));
+});
+
+test('photos_to_pdf_photo fetches the whole photo when the storage refuses a piece', async () => {
+    const photo = Buffer.alloc(4 * 1024 * 1024, 5);
+    const asked = [];
+    mockFetch({
+        '.file': () => new Response(null, { status: 302, headers: { location: 'https://storage.example/photo?sig=secret' } }),
+        'storage.example': (init) => {
+            asked.push(init.headers?.range ?? 'whole');
+            return init.headers?.range ? new Response('<Error>AccessDenied</Error>', { status: 403 }) : new Response(photo, { headers: { 'content-type': 'image/jpeg' } });
+        },
+    });
+    const data = parse(await handler(event('photos_to_pdf_photo', { uuid: JOB, offset: 3 * 1024 * 1024 })));
+    assert.deepEqual(asked, [`bytes=${3 * 1024 * 1024}-${6 * 1024 * 1024 - 1}`, 'whole']);
+    assert.equal(data.size, photo.length);
+    assert.ok(Buffer.from(data.data, 'base64').equals(photo.subarray(3 * 1024 * 1024)));
+    // The storage link's signature isn't logged.
+    assert.ok(!console.warn.mock.calls.flat().join(' ').includes('secret'));
 });
 
 test('photos_to_pdf_photo copes with storage that sends the whole photo', async () => {
