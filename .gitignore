@@ -6,5 +6,8 @@ node_modules/
 # OS and editor files
 .DS_Store
 Thumbs.db
-.vscode/
+# VS Code: only the shared project settings and recommended extensions.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/

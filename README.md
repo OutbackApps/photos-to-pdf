@@ -34,6 +34,8 @@ Once they're saved, the popup says which PDFs were saved and to reopen the job t
 
 Needs [Bun](https://bun.sh) 1.3 or later.
 
+**On another computer:** install Bun and Git, clone the repo, and open the folder in VS Code. It offers to install the recommended extensions (`.vscode/extensions.json`); say yes. The project's settings (`.vscode/settings.json`, `.editorconfig`: 4-space indents, LF line endings) and the tool versions (`packageManager` in `package.json`, `bun.lock`) come with the repo. Then `bun install`, and `bun run login` once to deploy from there. The browser tests use Chrome or Edge if it's installed (or set `BROWSER_PATH`).
+
 ```sh
 bun install
 bun test        # run the tests

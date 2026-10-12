@@ -25,7 +25,7 @@
  *   photos_to_pdf_upload   invoked by the page         -> adds a photo from the device to the job diary (likewise)
  */
 
-const { shell, photosToPdfPage } = require('./page');
+const { shell, pageScript } = require('./page');
 
 const API = 'https://api.servicem8.com/api_1.0';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -197,6 +197,7 @@ async function relayUpload(event, args) {
     return { name };
 }
 
+// cspell:ignore ftyp isom heix heim heis hevx
 /** HEIF brands used by photos (a video's ftyp box has others, e.g. qt, isom, mp42). */
 const HEIF_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'mif1', 'msf1']);
 /** AVIF brands (still and animated). Looked for in the whole brand list: AVIF files can lead with mif1. */
@@ -260,7 +261,7 @@ function page(event) {
     log('info', 'Opened Photos to PDF', { accountUUID: event.auth.accountUUID, jobUUID });
     // The page's data goes in an attribute, not the script, so it only needs HTML escaping.
     const app = `<div id="app" data-boot="${escapeHtml(JSON.stringify(boot))}"></div>`;
-    return shell("Photos to PDF", app, `(${photosToPdfPage.toString()})(JSON.parse(document.getElementById('app').dataset.boot));`);
+    return shell("Photos to PDF", app, pageScript());
 }
 
 function errorPage(message) {

@@ -1,40 +1,40 @@
 {
-	"$schema": "./node_modules/@servicem8/addon-kit/addon-schema.json",
+    "$schema": "./node_modules/@servicem8/addon-kit/addon-schema.json",
 
-	// The add-on's unique identifier. Deploys create or update the add-on with this slug,
-	// so changing it creates a NEW add-on.
-	"slug": "photos-to-pdf",
+    // The add-on's unique identifier. Deploys create or update the add-on with this slug,
+    // so changing it creates a NEW add-on.
+    "slug": "photos-to-pdf",
 
-	"name": "Photos to PDF",
-	// Bump this whenever the add-on changes.
-	"version": "1.4",
+    "name": "Photos to PDF",
+    // Bump this whenever the add-on changes.
+    "version": "1.4",
 
-	// The function's entry point, bundled by `addon-kit deploy`.
-	"main": "index.js",
+    // The function's entry point, bundled by `addon-kit deploy`.
+    "main": "index.js",
 
-	"oauth": {
-		"scope": "read_jobs read_attachments manage_attachments"
-	},
+    "oauth": {
+        "scope": "read_jobs read_attachments manage_attachments"
+    },
 
-	// The job card button: on the web (a modal popup) and in the app.
-	// The icon is icon.png from this repo, served by jsDelivr, pinned to a commit: jsDelivr serves that
-	// at once and it never changes (@main can lag by hours). After changing icon.png, push it and put
-	// the new commit here. ServiceM8 needs it at least 171 x 171.
-	"actions": [
-		{
-			"name": "Photos to PDF",
-			"type": "online",
-			"entity": "job",
-			"iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@0022c65/icon.png",
-			"event": "photos_to_pdf",
-			"location": "modal"
-		},
-		{
-			"name": "Photos to PDF",
-			"type": "app",
-			"entity": "job",
-			"iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@0022c65/icon.png",
-			"event": "photos_to_pdf"
-		}
-	]
+    // The job card button: on the web (a modal popup) and in the app.
+    // The icon is icon.png from this repo, served by jsDelivr, pinned to a commit: jsDelivr serves that
+    // at once and it never changes (@main can lag by hours). After changing icon.png, push it and put
+    // the new commit here. ServiceM8 needs it at least 171 x 171.
+    "actions": [
+        {
+            "name": "Photos to PDF",
+            "type": "online",
+            "entity": "job",
+            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@0022c65/icon.png",
+            "event": "photos_to_pdf",
+            "location": "modal"
+        },
+        {
+            "name": "Photos to PDF",
+            "type": "app",
+            "entity": "job",
+            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@0022c65/icon.png",
+            "event": "photos_to_pdf"
+        }
+    ]
 }

@@ -33,6 +33,7 @@ const auth = { accessToken: 'test-token', accountUUID: 'acct', staffUUID: STAFF 
 const uuid = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// cspell:ignore RGBY YBGR RBGY BRYG GYRB
 /** The test photo's corners (stored 400 × 300): red, green on top; blue, yellow below. */
 const CORNERS = ['#ff0000', '#00ff00', '#0000ff', '#ffff00'];
 /** The corners as they should be seen (top left, top right, bottom left, bottom right) for each EXIF orientation. */

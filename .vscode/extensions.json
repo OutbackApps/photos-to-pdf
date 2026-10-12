@@ -1,0 +1,13 @@
+{
+    // VS Code offers to install these when the folder's opened.
+    "recommendations": [
+        "editorconfig.editorconfig",
+        "oven.bun-vscode",
+        "sonarsource.sonarlint-vscode",
+        "github.vscode-github-actions",
+        "anthropic.claude-code",
+        "streetsidesoftware.code-spell-checker",
+        "yoavbls.pretty-ts-errors",
+        "yzhang.markdown-all-in-one"
+    ]
+}

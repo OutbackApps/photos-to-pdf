@@ -104,8 +104,81 @@ ${script ? `<script>${script}</script>` : ''}
 }
 
 /*
+ * Reading a JPEG's header, in the browser. They use nothing but what they're given, so they're sent
+ * with the page's script on their own (pageScript), not inside photosToPdfPage.
+ */
+
+/** A JPEG's pixel size, colours and EXIF orientation, if PDF readers can show it as it is (otherwise null). */
+async function jpegInfo(blob) {
+    // The frame header comes before the image data, after the EXIF and other metadata: usually
+    // in the first few KB, but the whole file's read if it isn't in the first MB.
+    const head = new Uint8Array(await blob.slice(0, 1024 * 1024).arrayBuffer());
+    const found = jpegHeader(head);
+    if (found !== undefined || head.length >= blob.size) return found ?? null;
+    return jpegHeader(new Uint8Array(await blob.arrayBuffer())) ?? null;
+}
+
+/** A JPEG's size, colours and EXIF orientation from its bytes: null if PDF readers can't show it as it is, undefined if the bytes ran out first. */
+function jpegHeader(b) {
+    if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+    let orientation = 1;
+    let i = 2;
+    while (i + 4 <= b.length) {
+        if (b[i] !== 0xff) return null;
+        const marker = b[i + 1];
+        if (marker === 0xff) {
+            i++; // padding
+            continue;
+        }
+        const length = (b[i + 2] << 8) | b[i + 3];
+        if (marker === 0xe1) orientation = exifOrientation(b.subarray(i + 4, i + 2 + length)) || orientation;
+        if (marker === 0xda || marker === 0xd9) return null; // image data, and no frame header before it
+        if (isFrame(marker)) return frame(b, i, marker, orientation);
+        i += 2 + length;
+    }
+    return undefined;
+}
+
+/** Start of frame markers (not DHT, JPG or DAC, which share the range). */
+function isFrame(marker) {
+    return marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
+}
+
+/** The frame header at i: baseline, extended or progressive, 8 bits, grey or colour is what every PDF reader shows. */
+function frame(b, i, marker, orientation) {
+    if (i + 10 > b.length) return undefined;
+    const components = b[i + 9];
+    const height = (b[i + 5] << 8) | b[i + 6];
+    const width = (b[i + 7] << 8) | b[i + 8];
+    const shown = marker <= 0xc2 && b[i + 4] === 8 && (components === 1 || components === 3) && width > 0 && height > 0;
+    return shown ? { width, height, orientation, grey: components === 1 } : null;
+}
+
+/** The Orientation (1–8) in a JPEG's EXIF segment, or 0 if it hasn't one. */
+function exifOrientation(segment) {
+    if (String.fromCodePoint(...segment.subarray(0, 6)) !== 'Exif\0\0') return 0;
+    const tiff = new DataView(segment.buffer, segment.byteOffset + 6, segment.byteLength - 6);
+    try {
+        const little = tiff.getUint16(0) === 0x4949; // "II": Intel byte order
+        const ifd = tiff.getUint32(4, little);
+        const count = tiff.getUint16(ifd, little);
+        for (let k = 0; k < count; k++) {
+            const entry = ifd + 2 + k * 12;
+            if (tiff.getUint16(entry, little) === 0x0112) {
+                const value = tiff.getUint16(entry + 8, little);
+                return value >= 1 && value <= 8 ? value : 0;
+            }
+        }
+    } catch {
+        // Cut short or malformed: read as no rotation.
+    }
+    return 0;
+}
+
+/*
  * Runs in the browser, not in the function: index.js sends it as the page's script (via
- * toString), so it can't use anything from the rest of this file, or require anything.
+ * toString, in pageScript), so it can't use anything from the rest of this file but the JPEG
+ * helpers above, which go with it, or require anything.
  */
 function photosToPdfPage(boot) {
     const API = 'https://api.servicem8.com/api_1.0';
@@ -210,33 +283,44 @@ function photosToPdfPage(boot) {
         let state = { step: 'pick' };
         let error = null;
 
+        /** A photo's bytes, by the quickest way that works: the ones that don't are skipped from then on. */
         async function fetchPhoto(p) {
-            if (directFiles) {
-                try {
-                    const res = await api(`/attachment/${p.uuid}.file`);
-                    if (res.ok) return await res.blob();
-                    // Refused from here (e.g. where this photo is stored): the function may still get it.
-                } catch (err) {
-                    if (!(err instanceof TypeError)) throw err;
-                    directFiles = false; // the file storage doesn't allow it; use the function from now on
-                }
+            return (directFiles && (await fromApi(p))) || (fromStorage && (await fromStorageLink(p))) || throughFunction(p);
+        }
+
+        /** Straight from ServiceM8's API, with the token. Null if it isn't to be had that way. */
+        async function fromApi(p) {
+            try {
+                const res = await api(`/attachment/${p.uuid}.file`);
+                // Refused from here (e.g. where this photo is stored): another way may still get it.
+                return res.ok ? await res.blob() : null;
+            } catch (err) {
+                if (!(err instanceof TypeError)) throw err;
+                directFiles = false; // the file storage doesn't allow it; not tried again
+                return null;
             }
-            // Straight from where it's stored, with the link the function gets for it (no token: the
-            // storage link carries its own permission). Much quicker than through the function.
-            if (fromStorage) {
-                try {
-                    const { url } = await call('photos_to_pdf_photo_url', { uuid: p.uuid });
-                    if (url) {
-                        const res = await fetch(url, { credentials: 'omit' });
-                        if (res.ok) return await res.blob();
-                        // Refused (e.g. the link expired): this one comes through the function.
-                    }
-                } catch (err) {
-                    if (!(err instanceof TypeError)) throw err;
-                    fromStorage = false; // the storage doesn't let the browser (CORS): the function, from now on
-                }
+        }
+
+        /**
+         * Straight from where it's stored, with the link the function gets for it (no token: the storage
+         * link carries its own permission). Much quicker than through the function. Null if not.
+         */
+        async function fromStorageLink(p) {
+            try {
+                const { url } = await call('photos_to_pdf_photo_url', { uuid: p.uuid });
+                if (!url) return null;
+                const res = await fetch(url, { credentials: 'omit' });
+                // Refused (e.g. the link expired): this one comes through the function.
+                return res.ok ? await res.blob() : null;
+            } catch (err) {
+                if (!(err instanceof TypeError)) throw err;
+                fromStorage = false; // the storage doesn't let the browser (CORS): not tried again
+                return null;
             }
-            // Through the function, a piece at a time (its replies are capped at 6 MB), each after the one before.
+        }
+
+        /** Through the function, a piece at a time (its replies are capped at 6 MB), each after the one before. */
+        async function throughFunction(p) {
             const pieces = [];
             async function piece(offset) {
                 const got = await call('photos_to_pdf_photo', { uuid: p.uuid, offset });
@@ -376,24 +460,33 @@ function photosToPdfPage(boot) {
         function renderSaved() {
             const { pdfs } = state;
             const names = pdfs.flatMap((pdf) => pdf.names);
-            const saved = names.length === 1 ? 'PDF saved' : `${names.length} PDFs saved`;
+            const one = names.length === 1;
+            const saved = one ? 'PDF saved' : `${names.length} PDFs saved`;
+            const them = one ? 'it' : 'them';
             const split = pdfs.filter((pdf) => pdf.names.length > 1).length;
+            const splitWhat = split === 1 ? "A PDF was too big for ServiceM8 in one file, so it's" : `${split} PDFs were too big for ServiceM8 in one file, so they're`;
             const shrunk = pdfs.flatMap((pdf) => pdf.shrunk);
+            // Anything else worth saying, under what was saved: [class, text].
+            const notes = [
+                split && ['muted', `${splitWhat} saved in parts.`],
+                shrunk.length && ['muted', `Too big for ServiceM8 even on their own, so made smaller to fit: ${shrunk.join(', ')}`],
+                state.shrunk && ['muted', "This device can't send files straight to ServiceM8, so the photos were made smaller to fit."],
+                state.failed.length && ['danger', `Left out (couldn't be read): ${state.failed.join(', ')}`],
+                state.notInDiary.length && ['danger', `Couldn't add to the job diary (they're still in the PDFs): ${state.notInDiary.join(', ')}`],
+            ].filter(Boolean);
+            const list = names.map((name) => `<li>${esc(name)}</li>`).join('');
+            const said = notes.map(([kind, text]) => `<p class="${kind}">${esc(text)}</p>`).join('');
             app.innerHTML = `
-      <div class="center done">
-        <div class="done-tick" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
-        <h1>${saved} to the job diary</h1>
-        <ul class="done-names muted">${names.map((name) => `<li>${esc(name)}</li>`).join('')}</ul>
-        <p class="done-reopen">Reopen the job to see ${names.length === 1 ? 'it' : 'them'} in the job diary.</p>
-      </div>
-      <div class="foot">
-        ${split ? `<p class="muted">${split === 1 ? 'A PDF was' : `${split} PDFs were`} too big for ServiceM8 in one file, so ${split === 1 ? "it's" : "they're"} saved in parts.</p>` : ''}
-        ${shrunk.length ? `<p class="muted">Too big for ServiceM8 even on their own, so made smaller to fit: ${esc(shrunk.join(', '))}</p>` : ''}
-        ${state.shrunk ? `<p class="muted">This device can't send files straight to ServiceM8, so the photos were made smaller to fit.</p>` : ''}
-        ${state.failed.length ? `<p class="danger">Left out (couldn't be read): ${esc(state.failed.join(', '))}</p>` : ''}
-        ${state.notInDiary.length ? `<p class="danger">Couldn't add to the job diary (they're still in the PDFs): ${esc(state.notInDiary.join(', '))}</p>` : ''}
-        <button class="btn" id="done">Done</button>
-      </div>`;
+        <div class="center done">
+            <div class="done-tick" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+            <h1>${saved} to the job diary</h1>
+            <ul class="done-names muted">${list}</ul>
+            <p class="done-reopen">Reopen the job to see ${them} in the job diary.</p>
+        </div>
+        <div class="foot">
+            ${said}
+            <button class="btn" id="done">Done</button>
+        </div>`;
             app.querySelector('#done').onclick = () => client.closeWindow();
         }
 
@@ -401,26 +494,26 @@ function photosToPdfPage(boot) {
         function renderPick() {
             const hint = photos.length ? '' : 'No photos on this job yet. Add some from this device.';
             app.innerHTML = `
-      <div class="bar">
+        <div class="bar">
         <span class="muted">${hint}</span>
         <span class="actions">
-          <button class="link" id="none">Leave all out</button>
-          <button class="link" id="every">Put all back</button>
-          <button class="link" id="add-photos" title="Add photos from this device. They're added to the job diary too.">+ Add photos</button>
-          <input type="file" id="add" accept="image/*" multiple hidden>
+            <button class="link" id="none">Leave all out</button>
+            <button class="link" id="every">Put all back</button>
+            <button class="link" id="add-photos" title="Add photos from this device. They're added to the job diary too.">+ Add photos</button>
+            <input type="file" id="add" accept="image/*" multiple hidden>
         </span>
-      </div>
-      ${photos.length ? '<div class="groups"></div>' : ''}
-      <div class="foot">
+        </div>
+        ${photos.length ? '<div class="groups"></div>' : ''}
+        <div class="foot">
         <div class="per">
-          <label for="per">Photos per PDF</label>
-          <input type="number" id="per" min="1" max="${MAX_PER_PDF}" step="1" inputmode="numeric" value="${perPdf}">
-          <span class="muted" id="pdfs"></span><span class="danger" id="over"></span>
-          <button id="resplit" title="Puts the photos in PDFs of this many each, keeping their order"></button>
+            <label for="per">Photos per PDF</label>
+            <input type="number" id="per" min="1" max="${MAX_PER_PDF}" step="1" inputmode="numeric" value="${perPdf}">
+            <span class="muted" id="pdfs"></span><span class="danger" id="over"></span>
+            <button id="resplit" title="Puts the photos in PDFs of this many each, keeping their order"></button>
         </div>
         <p class="danger" id="error" hidden></p>
         <button class="btn" id="save"></button>
-      </div>`;
+        </div>`;
             app.querySelector('#none').onclick = () => {
                 groups = [];
                 drawGroups();
@@ -461,12 +554,12 @@ function photosToPdfPage(boot) {
             const old = app.querySelector('.groups');
             if (old) {
                 const tile = (p) => `<li data-u="${esc(p.uuid)}"><button class="ph" data-i="${photos.indexOf(p)}" title="${esc(caption(p))}">
-              <span class="ph-msg">Loading…</span>${p.file ? '<span class="dev"></span>' : ''}
+                <span class="ph-msg">Loading…</span>${p.file ? '<span class="dev"></span>' : ''}
             </button></li>`;
                 // An empty list mustn't hold even whitespace, or it isn't :empty (its "Drag a photo here").
                 const section = (kind, title, list) => `<section class="group ${kind}">
-          <h2>${title} <span class="count muted"></span></h2>
-          <ul class="ogrid">${list.map(tile).join('')}</ul>
+            <h2>${title} <span class="count muted"></span></h2>
+            <ul class="ogrid">${list.map(tile).join('')}</ul>
         </section>`;
                 const wrap = document.createElement('div');
                 wrap.className = 'groups';
@@ -784,10 +877,17 @@ function photosToPdfPage(boot) {
                 loadThumb(photos[+e.target.dataset.i]);
             });
         }
-        function loadThumb(p) {
-            if (!making.has(p.uuid)) {
-                making.set(p.uuid, photoBlob(p).then((blob) => thumbnail(blob).catch(() => '')));
+        /** A photo's small copy for its tile: '' if this browser can't show the photo (it's still in the PDFs). */
+        async function smallCopy(p) {
+            const blob = await photoBlob(p);
+            try {
+                return await thumbnail(blob);
+            } catch {
+                return '';
             }
+        }
+        function loadThumb(p) {
+            if (!making.has(p.uuid)) making.set(p.uuid, smallCopy(p));
             making.get(p.uuid).then(
                 (url) => {
                     urls.set(p.uuid, url);
@@ -801,8 +901,7 @@ function photosToPdfPage(boot) {
                     const now = app.querySelector(`.ph[data-i="${photos.indexOf(p)}"]`);
                     const msg = now?.querySelector('.ph-msg');
                     if (msg) msg.textContent = "Couldn't load";
-                    if (now) now.title = `${caption(p)}
-${errText(err)}`; // why, on hover
+                    if (now) now.title = `${caption(p)}\n${errText(err)}`; // why, on hover
                 },
             );
         }
@@ -1134,66 +1233,6 @@ ${errText(err)}`; // why, on hover
             return toJpeg(blob, Infinity, PDF_PHOTO);
         }
 
-        /** A JPEG's pixel size, colours and EXIF orientation, if PDF readers can show it as it is (otherwise null). */
-        async function jpegInfo(blob) {
-            // The frame header comes before the image data, after the EXIF and other metadata: usually
-            // in the first few KB, but the whole file's read if it isn't in the first MB.
-            const head = new Uint8Array(await blob.slice(0, 1024 * 1024).arrayBuffer());
-            const found = jpegHeader(head);
-            if (found !== undefined || head.length >= blob.size) return found ?? null;
-            return jpegHeader(new Uint8Array(await blob.arrayBuffer())) ?? null;
-        }
-
-        /** jpegInfo's reading of the bytes: undefined if they ran out before the frame header. */
-        function jpegHeader(b) {
-            if (b[0] !== 0xff || b[1] !== 0xd8) return null;
-            let orientation = 1;
-            let i = 2;
-            while (i + 4 <= b.length) {
-                if (b[i] !== 0xff) return null;
-                const marker = b[i + 1];
-                if (marker === 0xff) {
-                    i++; // padding
-                    continue;
-                }
-                const length = (b[i + 2] << 8) | b[i + 3];
-                if (marker === 0xe1) orientation = exifOrientation(b.subarray(i + 4, i + 2 + length)) || orientation;
-                if (marker === 0xda || marker === 0xd9) return null; // image data, and no frame header before it
-                if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
-                    if (i + 10 > b.length) return undefined;
-                    // Baseline, extended or progressive, 8 bits, grey or colour: what every PDF reader shows.
-                    const components = b[i + 9];
-                    const height = (b[i + 5] << 8) | b[i + 6];
-                    const width = (b[i + 7] << 8) | b[i + 8];
-                    if (marker > 0xc2 || b[i + 4] !== 8 || (components !== 1 && components !== 3) || !width || !height) return null;
-                    return { width, height, orientation, grey: components === 1 };
-                }
-                i += 2 + length;
-            }
-            return undefined;
-        }
-
-        /** The Orientation (1–8) in a JPEG's EXIF segment, or 0 if it hasn't one. */
-        function exifOrientation(segment) {
-            if (String.fromCodePoint(...segment.subarray(0, 6)) !== 'Exif\0\0') return 0;
-            const tiff = new DataView(segment.buffer, segment.byteOffset + 6, segment.byteLength - 6);
-            try {
-                const little = tiff.getUint16(0) === 0x4949; // "II": Intel byte order
-                const ifd = tiff.getUint32(4, little);
-                const count = tiff.getUint16(ifd, little);
-                for (let k = 0; k < count; k++) {
-                    const entry = ifd + 2 + k * 12;
-                    if (tiff.getUint16(entry, little) === 0x0112) {
-                        const value = tiff.getUint16(entry + 8, little);
-                        return value >= 1 && value <= 8 ? value : 0;
-                    }
-                }
-            } catch {
-                // Cut short or malformed: read as no rotation.
-            }
-            return 0;
-        }
-
         /** A page's [width, height] as it's seen: EXIF orientations 5–8 turn the photo on its side. */
         const shape = (image) => (image.orientation >= 5 ? [image.height, image.width] : [image.width, image.height]);
 
@@ -1316,4 +1355,10 @@ ${errText(err)}`; // why, on hover
     void photosToPdf();
 }
 
-module.exports = { shell, photosToPdfPage };
+/** The page's script: photosToPdfPage and the helpers it uses, in a scope of their own, started with the page's data. */
+function pageScript() {
+    const code = [jpegInfo, jpegHeader, isFrame, frame, exifOrientation, photosToPdfPage].map(String).join('\n\n');
+    return `(() => {\n${code}\n\nphotosToPdfPage(JSON.parse(document.getElementById('app').dataset.boot));\n})();`;
+}
+
+module.exports = { shell, pageScript };

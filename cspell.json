@@ -1,0 +1,38 @@
+{
+    "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+    "version": "0.2",
+    // Australian spelling (as British: colour) and American (CSS's color).
+    "language": "en,en-GB",
+    "ignorePaths": ["node_modules", "bun.lock", "*.png"],
+    // "\nstartxref" is a line break, then startxref.
+    "ignoreRegExpList": ["/\\\\[nrt]/g"],
+    // Words in this project that aren't in the dictionaries. Codes that aren't words (HEIF brands,
+    // test colour codes) are ignored in the files that use them instead (cspell:ignore).
+    "words": [
+        "addon",
+        "avif",
+        "bunx",
+        "dpi",
+        "endobj",
+        "exif",
+        "gstatic",
+        "heic",
+        "heif",
+        "hellip",
+        "inputmode",
+        "jsdelivr",
+        "jsonc",
+        "ogrid",
+        "pdfjs",
+        "pdfs",
+        "resplit",
+        "sdk",
+        "servicem",
+        "sonarlint",
+        "sonarsource",
+        "startxref",
+        "webp",
+        "yoavbls",
+        "yzhang"
+    ]
+}

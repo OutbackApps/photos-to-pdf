@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { handler } = require('..');
 
+// cspell:ignore ftyp ftypqt avifmif miaf avismsf
 const JOB = '11111111-2222-3333-4444-555555555555';
 const STAFF = '66666666-7777-8888-9999-aaaaaaaaaaaa';
 const auth = { accessToken: 'test-token', accountUUID: 'acct', staffUUID: STAFF };

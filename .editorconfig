@@ -1,0 +1,14 @@
+# The same formatting in any editor (VS Code needs the EditorConfig extension, which is recommended).
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+# Two spaces at the end of a line are a line break in Markdown.
+trim_trailing_whitespace = false
