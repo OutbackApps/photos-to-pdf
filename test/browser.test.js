@@ -354,6 +354,32 @@ describe.skipIf(!BROWSER)('the popup', () => {
         }
     }, 60000);
 
+    test("dragging across the page highlights nothing, and its text can't be dragged about", async () => {
+        const { page, context } = await open(await jobPhotos(Array(3).fill('jpeg')));
+        try {
+            // From the "PDF 1" heading, across the links at the top.
+            const from = await centre(page, '.group:nth-child(1) h2');
+            const to = await centre(page, '#add-photos');
+            await page.mouse.move(from.x - 30, from.y);
+            await page.mouse.down();
+            for (let k = 1; k <= 10; k++) await page.mouse.move(from.x - 30 + ((to.x - from.x + 30) * k) / 10, from.y + ((to.y - from.y) * k) / 10);
+            await page.mouse.up();
+            assert.equal(await page.evaluate(() => getSelection().toString()), '');
+            // Text the browser would otherwise let you drag (selected some other way) doesn't move.
+            const dragged = await page.evaluate(() => {
+                const e = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+                document.querySelector('.group h2').dispatchEvent(e);
+                return !e.defaultPrevented;
+            });
+            assert.equal(dragged, false);
+            // The number box can still be selected and typed in.
+            await setPerPdf(page, 7);
+            assert.equal(await page.$eval('#per', (el) => el.value), '7');
+        } finally {
+            await context.close();
+        }
+    }, 60000);
+
     test('photos are dragged between PDFs, into a new one or left out, with a warning over the limit', async () => {
         const { page, context } = await open(await jobPhotos(Array(6).fill('jpeg')));
         try {

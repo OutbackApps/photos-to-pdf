@@ -10,6 +10,9 @@ const SHELL_CSS = `
 :root { --brand: #7dc836; --brand-ink: #4e8a1e; --ink: #4d4d4d; --muted: #8c8c8c; --line: #d6dadc; --field: #edeff0; --field-line: #cdd2d4; --button: #e6e6e6; --button-ink: #636362; --empty: #e2e4e6; --empty-line: #c4c9cc; --surface: #fff; --surface-2: #f4f5f6; --danger: #eb5a46; }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 12px 12px 96px; font: 14px/1.4 'Open Sans', Arial, Helvetica, sans-serif; color: var(--ink); background: var(--surface); }
+/* Nothing on the page highlights when a mouse is dragged across it (photos are dragged here), except what's for typing or copying. */
+body { user-select: none; -webkit-user-select: none; }
+input, .done-names { user-select: text; -webkit-user-select: text; }
 h1, h2 { font-weight: 600; }
 h1 { font-size: 18px; margin: 0 0 2px; }
 p { margin: 0; }
@@ -108,6 +111,9 @@ function photosToPdfPage(boot) {
     const API = 'https://api.servicem8.com/api_1.0';
     const client = window.SMClient.init();
     const app = document.getElementById('app');
+    // The page's own text and images can't be dragged about (or dropped into "Photos per PDF"):
+    // photos are moved with their own dragging. Files dragged in from the device still drop.
+    document.addEventListener('dragstart', (e) => e.preventDefault());
     try {
         // As big as the screen comfortably allows (room for the browser's toolbars and the modal's
         // title), up to 1280 x 1000; this page can't see the size of ServiceM8's own page around it.
