@@ -1,0 +1,38 @@
+{
+	"$schema": "./node_modules/@servicem8/addon-kit/addon-schema.json",
+
+	// The add-on's unique identifier. Deploys create or update the add-on with this slug,
+	// so changing it creates a NEW add-on.
+	"slug": "photos-to-pdf",
+
+	"name": "Photos to PDF",
+	// Bump this whenever the add-on changes.
+	"version": "1.3",
+
+	// The function's entry point, bundled by `addon-kit deploy`.
+	"main": "index.js",
+
+	"oauth": {
+		"scope": "read_jobs read_attachments manage_attachments"
+	},
+
+	// The job card button: on the web (a modal popup) and in the app.
+	// The icon is icon.png from this repo, served by jsDelivr.
+	"actions": [
+		{
+			"name": "Photos to PDF",
+			"type": "online",
+			"entity": "job",
+			"iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@main/icon.png",
+			"event": "photos_to_pdf",
+			"location": "modal"
+		},
+		{
+			"name": "Photos to PDF",
+			"type": "app",
+			"entity": "job",
+			"iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@main/icon.png",
+			"event": "photos_to_pdf"
+		}
+	]
+}
