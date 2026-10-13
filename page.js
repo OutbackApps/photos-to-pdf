@@ -24,7 +24,13 @@ button:disabled { cursor: default; }
 .link, .per #resplit { padding: 4px 10px; border: 1px solid transparent; border-radius: 6px; background: var(--button); color: var(--button-ink); font-size: 12px; line-height: 20px; white-space: nowrap; }
 .link:hover:not(:disabled), .per #resplit:hover:not(:disabled) { background: #fff4ff; border-color: #e4d5dc; border-bottom-color: #90a4b3; box-shadow: 0 1px 3px rgba(157, 174, 236, .5), inset 0 1px 0 #fff; }
 .link:disabled, .per #resplit:disabled { background: var(--empty); color: var(--muted); }
-.bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 12px 0 8px; font-size: 14px; }
+.bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin: 12px 0 8px; font-size: 14px; }
+/* Simple / Detailed: two buttons side by side, the one in use green. */
+.view { display: inline-flex; flex: none; }
+.view .link { border-radius: 0; }
+.view .link:first-child { border-radius: 6px 0 0 6px; }
+.view .link:last-child { border-radius: 0 6px 6px 0; }
+.view .link.on, .view .link.on:hover:not(:disabled) { background: var(--brand); border-color: transparent; box-shadow: none; color: #fff; }
 .bar:first-child { margin-top: 0; }
 .bar .actions { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
 .ogrid { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: pan-y; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
@@ -37,13 +43,37 @@ button:disabled { cursor: default; }
 .ph.out img { opacity: .4; filter: grayscale(1); }
 .ogrid li.placeholder .ph { opacity: .25; }
 .ghost { position: fixed; z-index: 10; list-style: none; pointer-events: none; transform: scale(1.06); box-shadow: 0 8px 20px rgba(0, 0, 0, .35); border-radius: 6px; }
+/* Selected photos: a green frame and tint. Several being dragged: a stack, with how many. */
+.ogrid li { position: relative; }
+.ph.sel { outline: 3px solid var(--brand); outline-offset: 2px; }
+.ph.sel::after { content: ""; position: absolute; inset: 0; background: rgba(125, 200, 54, .25); }
+.ghost.stack { box-shadow: 5px 5px 0 -1px var(--surface), 6px 6px 0 0 var(--line), 0 8px 20px rgba(0, 0, 0, .35); }
+.ghost-count { position: absolute; top: -9px; right: -9px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: var(--brand); color: #fff; font-size: 12px; font-weight: 600; line-height: 24px; text-align: center; }
+.lasso { position: fixed; z-index: 15; pointer-events: none; border: 1px solid var(--brand); border-radius: 2px; background: rgba(125, 200, 54, .15); }
+/* What's selected, and what to do with it (or how to select, when nothing is): always the same height. */
+.selection-bar { display: flex; align-items: center; gap: 6px; min-height: 30px; margin-bottom: 8px; font-size: 13px; }
+.selection-bar #sel-count { font-weight: 600; margin-right: 4px; }
+.selection-bar #sel-how { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.selection-bar [hidden] { display: none; }
 body.reordering, body.reordering * { cursor: grabbing !important; }
+/* "Enlarge on hover": the photo pointed at, bigger, beside its tile, fading in. */
+.bar .enlarge { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--button-ink); white-space: nowrap; cursor: pointer; }
+.peek { position: fixed; z-index: 20; pointer-events: none; }
+.peek[hidden] { display: none; }
+.peek { animation: peek-in .15s ease-out; }
+.peek img { display: block; border-radius: 6px; background: var(--field); box-shadow: 0 6px 18px rgba(0, 0, 0, .3); }
+@keyframes peek-in { from { opacity: 0; transform: scale(.96); } }
 .dev { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 4px; font-size: 10px; text-align: center; color: #fff; background: rgba(0, 0, 0, .55); }
 .dev.failed { background: var(--danger); }
+/* The picker fills the window, so "Left out" sits at the bottom, just above the footer, when there's room. */
+body:has(.groups) { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+body:has(.groups) #app, .groups { flex: 1; display: flex; flex-direction: column; }
+.groups > .out { margin-top: auto; }
 body.dropping .groups { outline: 2px dashed var(--brand); outline-offset: 4px; border-radius: 6px; }
 .foot { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 12px max(10px, env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); }
 .foot .danger { margin-bottom: 6px; }
 .per { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; flex-wrap: wrap; }
+.per[hidden] { display: none; }
 .per label { font-weight: 600; }
 /* Inputs, as sdk.css draws them. */
 .per input { width: 64px; padding: .4em .5em; border: 1px solid var(--field-line); border-radius: 3px; font: inherit; color: var(--ink); background: var(--surface); }
@@ -71,6 +101,9 @@ body.dropping .groups { outline: 2px dashed var(--brand); outline-offset: 4px; b
 .ogrid:empty { min-height: 64px; align-items: center; }
 .group:has(> .ogrid:empty) { background: none; border-style: dashed; border-color: var(--empty-line); }
 .ogrid:empty::after { content: "Drag a photo here"; grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 13px; }
+/* Empty, a list other than "New PDF" is still a tile tall (an unseen tile sets the row's height), so it doesn't grow when the first photo goes in. */
+.group:not(.new) .ogrid:empty::before { content: ""; grid-row: 1; grid-column: 1; aspect-ratio: 1; }
+.group:not(.new) .ogrid:empty::after { grid-row: 1; }
 /* The main button: ServiceM8's green. */
 .btn { width: 100%; padding: .6em 1.4em; border: 0; border-radius: 6px; background: var(--brand); color: #fff; font-size: 14px; font-weight: 600; line-height: 24px; }
 .btn:hover:not(:disabled) { background: #73bb30; }
@@ -189,9 +222,9 @@ function photosToPdfPage(boot) {
     document.addEventListener('dragstart', (e) => e.preventDefault());
     try {
         // As big as the screen comfortably allows (room for the browser's toolbars and the modal's
-        // title), up to 1280 x 1000; this page can't see the size of ServiceM8's own page around it.
+        // title), up to 1200 x 900; this page can't see the size of ServiceM8's own page around it.
         const fit = (room, margin, most) => Math.round(Math.max(480, Math.min(most, (room || most) - margin)));
-        client.resizeWindow(fit(screen.availWidth, 120, 1280), fit(screen.availHeight, 220, 1000));
+        client.resizeWindow(fit(screen.availWidth, 160, 1200), fit(screen.availHeight, 260, 900));
     } catch {
         // Some ServiceM8 windows can't be resized; the page fits any size.
     }
@@ -279,6 +312,26 @@ function photosToPdfPage(boot) {
             perPdf = perPdfFrom(localStorage.getItem(PER_PDF_KEY)) || perPdf;
         } catch {
             // No storage in this window: it starts at the default each time.
+        }
+        /**
+         * Simple: one list of photos in page order, split into PDFs of perPdf when saved. Detailed: each
+         * PDF arranged on its own. Simple unless Detailed was used last on this device.
+         */
+        const VIEW_KEY = 'photos-to-pdf:view';
+        let simple = true;
+        try {
+            simple = localStorage.getItem(VIEW_KEY) !== 'detailed';
+        } catch {
+            // No storage in this window: it starts Simple each time.
+        }
+        /** "Enlarge on hover", with a mouse: off until it's turned on, then remembered on this device. */
+        const ENLARGE_KEY = 'photos-to-pdf:enlarge';
+        const canEnlarge = matchMedia('(hover: hover) and (pointer: fine)').matches;
+        let enlargeOn = false;
+        try {
+            enlargeOn = localStorage.getItem(ENLARGE_KEY) === '1';
+        } catch {
+            // No storage in this window: it starts off each time.
         }
         let state = { step: 'pick' };
         let error = null;
@@ -440,6 +493,46 @@ function photosToPdfPage(boot) {
             }
         }
 
+        /** The photos selected (uuids), to drag about or leave out together, and the one a Shift-click selects from. */
+        const selected = new Set();
+        let anchor = null;
+        /** Every photo's uuid in the order shown: the PDFs (or Simple's list), then "Left out". */
+        const shownOrder = () => Array.from(app.querySelectorAll('.groups .ogrid > li'), (li) => li.dataset.u);
+        const isOut = (uuid) => !groups.some((g) => g.includes(uuid));
+
+        /**
+         * Leaves these photos out (true) or puts them back at the end (false), in the order given. Unless
+         * a PDF comes or goes in Detailed, just they move, so the rest (and their thumbnails) stay as they are.
+         */
+        function setOut(uuids, out) {
+            const wrap = app.querySelector('.groups');
+            const pdfs = groups.length;
+            if (out) uuids.forEach(leaveOut);
+            else putBack(uuids);
+            if (simple) groups = split(groups.flat()); // still even PDFs, in its one list
+            else if (groups.length !== pdfs) return drawGroups(); // redrawn, to number them
+            const li = (uuid) => wrap.querySelector(`li[data-u="${CSS.escape(uuid)}"]`);
+            const lists = wrap.querySelectorAll('.pdf:not(.new) .ogrid');
+            for (const uuid of uuids) {
+                const gi = groups.findIndex((g) => g.includes(uuid));
+                if (gi >= 0) lists[simple ? 0 : gi].appendChild(li(uuid));
+            }
+            // Left out ones are in the photos' own order.
+            const outList = wrap.querySelector('.out .ogrid');
+            for (const p of leftOut()) outList.appendChild(li(p.uuid));
+            renumber(wrap);
+            update();
+        }
+
+        /** The selected photos that are in a PDF, left out (true) or put back (false), and the selection cleared. */
+        function setSelectedOut(out) {
+            const uuids = shownOrder().filter((u) => selected.has(u) && isOut(u) !== out);
+            selected.clear();
+            anchor = null;
+            if (uuids.length) setOut(uuids, out);
+            else update();
+        }
+
         /** A new number of photos per PDF. Nothing moves ("Split into PDFs of…" does that): it's the limit PDFs are checked against. */
         function setPerPdf(n) {
             perPdf = n;
@@ -448,6 +541,18 @@ function photosToPdfPage(boot) {
             } catch {
                 // Not remembered next time; it still applies now.
             }
+        }
+
+        /** Switching to Simple puts the photos back into even PDFs, in the order they're in. */
+        function setView(toSimple) {
+            simple = toSimple;
+            if (simple) groups = split(groups.flat());
+            try {
+                localStorage.setItem(VIEW_KEY, simple ? 'simple' : 'detailed');
+            } catch {
+                // Not remembered next time; it still applies now.
+            }
+            render();
         }
 
         function render() {
@@ -493,10 +598,29 @@ function photosToPdfPage(boot) {
         /** The photos, in their PDFs ("New PDF" to start another), then the ones left out. */
         function renderPick() {
             const hint = photos.length ? '' : 'No photos on this job yet. Add some from this device.';
+            const checked = enlargeOn ? ' checked' : '';
+            const enlargeToggle = canEnlarge ? `<label class="enlarge" title="Point at a photo to see it bigger"><input type="checkbox" id="enlarge"${checked}> Enlarge on hover</label>` : '';
+            const on = (isOn) => (isOn ? ' on' : '');
+            // With a mouse (as for "Enlarge on hover") or a finger.
+            const how = canEnlarge
+                ? 'Click to select (Shift or Ctrl for more, or drag a box), then drag them. Double-click to leave one out or put it back.'
+                : 'Tap to select, hold to drag, double-tap to leave one out or put it back.';
+            const selectionBar = `<div class="selection-bar">
+            <span class="muted" id="sel-how">${how}</span>
+            <span id="sel-count"></span>
+            <button class="link" id="sel-out" title="Delete">Leave out</button>
+            <button class="link" id="sel-back">Put back</button>
+            <button class="link" id="sel-clear" title="Esc">Clear</button>
+        </div>`;
             app.innerHTML = `
         <div class="bar">
+        <span class="view" role="group" aria-label="View">
+            <button class="link${on(simple)}" id="view-simple" aria-pressed="${simple}" title="The photos in page order: drag to reorder, or select and leave out. Saved as PDFs of up to ${perPdf} each.">Simple</button>
+            <button class="link${on(!simple)}" id="view-detailed" aria-pressed="${!simple}" title="Choose which photos go in each PDF, and how many per PDF">Detailed</button>
+        </span>
         <span class="muted">${hint}</span>
         <span class="actions">
+            ${enlargeToggle}
             <button class="link" id="none">Leave all out</button>
             <button class="link" id="every">Put all back</button>
             <button class="link" id="add-photos" title="Add photos from this device. They're added to the job diary too.">+ Add photos</button>
@@ -505,7 +629,8 @@ function photosToPdfPage(boot) {
         </div>
         ${photos.length ? '<div class="groups"></div>' : ''}
         <div class="foot">
-        <div class="per">
+        ${photos.length ? selectionBar : ''}
+        <div class="per"${simple ? ' hidden' : ''}>
             <label for="per">Photos per PDF</label>
             <input type="number" id="per" min="1" max="${MAX_PER_PDF}" step="1" inputmode="numeric" value="${perPdf}">
             <span class="muted" id="pdfs"></span><span class="danger" id="over"></span>
@@ -514,6 +639,12 @@ function photosToPdfPage(boot) {
         <p class="danger" id="error" hidden></p>
         <button class="btn" id="save"></button>
         </div>`;
+            app.querySelector('#view-simple').onclick = () => {
+                if (!simple) setView(true);
+            };
+            app.querySelector('#view-detailed').onclick = () => {
+                if (simple) setView(false);
+            };
             app.querySelector('#none').onclick = () => {
                 groups = [];
                 drawGroups();
@@ -537,7 +668,17 @@ function photosToPdfPage(boot) {
                 drawGroups();
             };
             app.querySelector('#save').onclick = save;
-            const add = app.querySelector('#add');
+            if (photos.length) {
+                app.querySelector('#sel-out').onclick = () => setSelectedOut(true);
+                app.querySelector('#sel-back').onclick = () => setSelectedOut(false);
+                app.querySelector('#sel-clear').onclick = () => {
+                    selected.clear();
+                    update();
+                };
+            }
+            const enlarge = app.querySelector('#enlarge');
+            if (enlarge) enlarge.onchange = () => setEnlarge(enlarge.checked);
+            const add =app.querySelector('#add');
             app.querySelector('#add-photos').onclick = () => add.click();
             add.onchange = (e) => {
                 addFiles(e.target.files);
@@ -553,6 +694,7 @@ function photosToPdfPage(boot) {
         function drawGroups() {
             const old = app.querySelector('.groups');
             if (old) {
+                hidePeek(); // its tile is about to go
                 const tile = (p) => `<li data-u="${esc(p.uuid)}"><button class="ph" data-i="${photos.indexOf(p)}" title="${esc(caption(p))}">
                 <span class="ph-msg">Loading…</span>${p.file ? '<span class="dev"></span>' : ''}
             </button></li>`;
@@ -563,11 +705,11 @@ function photosToPdfPage(boot) {
         </section>`;
                 const wrap = document.createElement('div');
                 wrap.className = 'groups';
-                wrap.innerHTML = [
-                    ...groups.map((g, gi) => section('pdf', `PDF ${gi + 1}`, g.map(byUuid))),
-                    section('pdf new', 'New PDF', []),
-                    section('out', 'Left out', leftOut()),
-                ].join('');
+                // Simple: the photos in one list, the PDFs split up when saved.
+                const pdfs = simple
+                    ? [section('pdf', 'Photos', groups.flat().map(byUuid))]
+                    : [...groups.map((g, gi) => section('pdf', `PDF ${gi + 1}`, g.map(byUuid))), section('pdf new', 'New PDF', [])];
+                wrap.innerHTML = [...pdfs, section('out', 'Left out', leftOut())].join('');
                 old.replaceWith(wrap);
                 arrangeable(wrap);
                 wrap.querySelectorAll('.ph').forEach((el) => thumb(el, photos[+el.dataset.i]));
@@ -588,6 +730,7 @@ function photosToPdfPage(boot) {
             const n = groups.flat().length;
             app.querySelectorAll('.ph').forEach((el) => {
                 el.disabled = busy();
+                el.classList.toggle('sel', selected.has(el.parentElement.dataset.u));
                 const dev = el.querySelector('.dev');
                 if (dev) {
                     const p = photos[+el.dataset.i];
@@ -595,7 +738,8 @@ function photosToPdfPage(boot) {
                     dev.className = `dev ${p.diary}`;
                 }
             });
-            for (const id of ['#add-photos', '#none', '#every', '#per', '#resplit']) app.querySelector(id).disabled = busy();
+            for (const id of ['#view-simple', '#view-detailed', '#add-photos', '#none', '#every', '#per', '#resplit']) app.querySelector(id).disabled = busy();
+            updateSelectionBar();
             const resplit = app.querySelector('#resplit');
             resplit.hidden = even();
             resplit.textContent = `Split into PDFs of ${perPdf}`;
@@ -611,6 +755,23 @@ function photosToPdfPage(boot) {
             fitFoot();
             btn.disabled = !n || busy();
             btn.textContent = saveLabel(n, groups.length);
+        }
+
+        /** How many are selected, with Leave out and Put back for those it applies to (or how to select, when none are). */
+        function updateSelectionBar() {
+            if (!app.querySelector('.selection-bar')) return; // no photos yet
+            const uuids = [...selected];
+            const show = (id, on) => {
+                const el = app.querySelector(id);
+                el.hidden = !on;
+                if (el.tagName === 'BUTTON') el.disabled = busy();
+            };
+            show('#sel-how', !uuids.length);
+            show('#sel-count', uuids.length);
+            show('#sel-out', uuids.some((u) => !isOut(u)));
+            show('#sel-back', uuids.some(isOut));
+            show('#sel-clear', uuids.length);
+            app.querySelector('#sel-count').textContent = `${uuids.length} selected`;
         }
 
         function saveLabel(n, pdfs) {
@@ -640,6 +801,22 @@ function photosToPdfPage(boot) {
             addFiles(e.dataTransfer.files);
         });
 
+        // Esc clears the selection, Delete (or Backspace) leaves it out, and Ctrl+A selects every photo.
+        document.addEventListener('keydown', (e) => {
+            if (!app.querySelector('.groups') || busy() || e.target.closest?.('input')) return;
+            if (e.key === 'Escape' && selected.size) {
+                selected.clear();
+                update();
+            } else if ((e.key === 'Delete' || e.key === 'Backspace') && selected.size) {
+                e.preventDefault();
+                setSelectedOut(true);
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+                e.preventDefault();
+                for (const u of shownOrder()) selected.add(u);
+                update();
+            }
+        });
+
         /** How far to scroll while the pointer is held within `margin` px of the top or bottom (above the footer). */
         function edgeStep(y, margin, speed) {
             const bottomEdge = innerHeight - (app.querySelector('.foot')?.offsetHeight ?? 0);
@@ -654,10 +831,11 @@ function photosToPdfPage(boot) {
                 const items = Array.from(section.querySelectorAll('.ogrid > li'));
                 const inPdf = section.classList.contains('pdf');
                 for (const [k, li] of items.entries()) markTile(li.firstElementChild, inPdf ? k + 1 : null);
-                const over = inPdf && items.length > perPdf;
+                // Simple's one list is split up when saved, so it's never over the limit.
+                const over = !simple && inPdf && items.length > perPdf;
                 section.classList.toggle('over', over);
                 let count = '';
-                if (inPdf && items.length) count = `${items.length} of ${perPdf}${over ? ', over the limit' : ''}`;
+                if (!simple && inPdf && items.length) count = `${items.length} of ${perPdf}${over ? ', over the limit' : ''}`;
                 else if (items.length) count = String(items.length);
                 section.querySelector('.count').textContent = count;
             }
@@ -681,45 +859,70 @@ function photosToPdfPage(boot) {
         }
 
         /**
-         * Tap or click a photo to leave it out, or to put it back. Drag one to where it should go: a new
-         * spot in its PDF, another PDF, "New PDF" or "Left out"; the others move out of the way. With a
-         * mouse, dragging is enough; on touch screens, press and hold first (moving straight away scrolls).
+         * Click a photo to select it: Ctrl-click for one more (or one fewer), Shift-click for all those
+         * from the last one clicked, or drag a box around them from a space between photos. On touch
+         * screens, a tap selects or unselects. Drag a selected photo to move all those selected, in
+         * their order (any other photo moves on its own) to where they should go: a new spot in its PDF,
+         * another PDF, "New PDF" or "Left out"; the others move out of the way. With a mouse, dragging is
+         * enough; on touch screens, press and hold first (moving straight away scrolls). Double-click (or
+         * double-tap) a photo to leave it out, or put it back, on its own.
          */
         function arrangeable(wrap) {
             let drag = null;
+            let box = null; // a box being dragged out, to select the photos it touches
             let dragged = false; // the click that ends a drag isn't a tap
+            let pointer = 'mouse'; // what pressed last: a tap on a touch screen adds to the selection
+            let lastClick = null; // the photo clicked last, when, and what was selected before: a second click soon after is a double-click
             const uuidsIn = (ul) => Array.from(ul.children, (li) => li.dataset.u);
             renumber(wrap);
 
             wrap.addEventListener('click', (e) => {
                 const el = e.target.closest('.ph');
-                if (!el || busy()) return;
-                if (dragged) {
-                    dragged = false;
-                    return;
+                if (!el || dragged || busy()) return;
+                const uuid = el.parentElement.dataset.u;
+                const plain = !e.shiftKey && !e.ctrlKey && !e.metaKey;
+                // Both clicks of a double-click (or tap) select: the selection goes back to what it was
+                // before them, without this photo, and the photo's left out or put back on its own.
+                if (plain && lastClick?.uuid === uuid && Date.now() - lastClick.at < 400) {
+                    selected.clear();
+                    for (const u of lastClick.before) if (u !== uuid) selected.add(u);
+                    lastClick = null;
+                    return setOut([uuid], !isOut(uuid));
                 }
-                const li = el.parentElement;
-                const uuid = li.dataset.u;
-                const pdfs = groups.length;
-                if (el.classList.contains('out')) putBack([uuid]);
-                else leaveOut(uuid);
-                // A PDF came or went: redrawn, to number them. Otherwise just this photo moves, so the
-                // rest (and their thumbnails) stay as they are.
-                if (groups.length !== pdfs) return drawGroups();
-                const gi = groups.findIndex((g) => g.includes(uuid));
-                const lists = wrap.querySelectorAll('.pdf:not(.new) .ogrid');
-                if (gi >= 0) {
-                    lists[gi].appendChild(li);
-                } else {
-                    // Left out ones are in the photos' own order.
-                    const out = wrap.querySelector('.out .ogrid');
-                    const k = leftOut().findIndex((p) => p.uuid === uuid);
-                    out.insertBefore(li, Array.from(out.children).filter((x) => x !== li)[k] || null);
-                }
-                renumber(wrap);
-                update();
+                lastClick = plain ? { uuid, at: Date.now(), before: new Set(selected) } : null;
+                select(uuid, e);
             });
+
+            function select(uuid, e) {
+                const more = e.ctrlKey || e.metaKey;
+                const order = shownOrder();
+                if (e.shiftKey && order.includes(anchor)) {
+                    const [a, b] = [order.indexOf(anchor), order.indexOf(uuid)].sort((x, y) => x - y);
+                    if (!more) selected.clear();
+                    for (const u of order.slice(a, b + 1)) selected.add(u);
+                } else if (more || pointer !== 'mouse') {
+                    if (selected.has(uuid)) selected.delete(uuid);
+                    else selected.add(uuid);
+                    anchor = uuid;
+                } else {
+                    // Just this one; clicked again on its own, nothing.
+                    const only = selected.size === 1 && selected.has(uuid);
+                    selected.clear();
+                    if (!only) selected.add(uuid);
+                    anchor = uuid;
+                }
+                update();
+            }
             wrap.addEventListener('contextmenu', (e) => e.preventDefault()); // long-press menus
+            // "Enlarge on hover": until the pointer leaves the photo, or it's pressed (to move it).
+            wrap.addEventListener('pointerover', (e) => {
+                const el = e.target.closest('.ph');
+                if (el && e.pointerType === 'mouse' && !drag && !busy()) peek(el);
+            });
+            wrap.addEventListener('pointerout', (e) => {
+                const el = e.target.closest('.ph');
+                if (el && !el.contains(e.relatedTarget)) hidePeek();
+            });
             // Once a photo's lifted, a finger moving mustn't scroll the page.
             wrap.addEventListener(
                 'touchmove',
@@ -730,14 +933,22 @@ function photosToPdfPage(boot) {
             );
 
             wrap.addEventListener('pointerdown', (e) => {
+                // One at a time: a second finger mustn't strand the first one's ghost.
+                if (e.button > 0 || drag || box || busy()) return;
+                pointer = e.pointerType;
                 const li = e.target.closest('li');
-                // One photo at a time: a second finger mustn't strand the first one's ghost.
-                if (!li || e.button > 0 || drag || busy()) return;
+                if (!li) {
+                    lastClick = null; // pressed between photos: the next click isn't a double-click
+                    if (e.pointerType === 'mouse') startBox(e);
+                    return;
+                }
+                hidePeek();
                 dragged = false;
                 drag = { li, id: e.pointerId, mouse: e.pointerType === 'mouse', x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, lifted: false };
                 if (!drag.mouse) drag.timer = setTimeout(lift, 300);
             });
             wrap.addEventListener('pointermove', (e) => {
+                if (box && e.pointerId === box.id) return moveBox(e);
                 if (!drag || e.pointerId !== drag.id) return;
                 drag.cx = e.clientX;
                 drag.cy = e.clientY;
@@ -752,6 +963,7 @@ function photosToPdfPage(boot) {
                 follow();
             });
             const end = (e) => {
+                if (box && e.pointerId === box.id) endBox();
                 if (drag && e.pointerId === drag.id) drop();
             };
             wrap.addEventListener('pointerup', end);
@@ -769,13 +981,25 @@ function photosToPdfPage(boot) {
                 // Sections can grow while a photo's dragged about, but not shrink until it's dropped (the
                 // redraw then), so a photo leaving one doesn't pull everything below up under the pointer.
                 for (const ul of wrap.querySelectorAll('.ogrid')) ul.style.minHeight = `${ul.offsetHeight}px`;
+                // A selected photo takes the others selected with it; any other goes on its own.
+                drag.members = selected.has(drag.li.dataset.u) ? Array.from(wrap.querySelectorAll('.ogrid > li')).filter((li) => selected.has(li.dataset.u)) : [drag.li];
                 const r = drag.li.getBoundingClientRect();
                 drag.offX = drag.cx - r.left;
                 drag.offY = drag.cy - r.top;
                 drag.ghost = drag.li.cloneNode(true);
                 drag.ghost.className = 'ghost';
                 Object.assign(drag.ghost.style, { width: `${r.width}px`, height: `${r.height}px` });
+                if (drag.members.length > 1) {
+                    drag.ghost.classList.add('stack');
+                    const count = document.createElement('span');
+                    count.className = 'ghost-count';
+                    count.textContent = drag.members.length;
+                    drag.ghost.append(count);
+                }
                 document.body.appendChild(drag.ghost);
+                // The others are carried along (out of the lists) until it's dropped.
+                for (const li of drag.members) if (li !== drag.li) li.remove();
+                renumber(wrap);
                 drag.li.classList.add('placeholder');
                 document.body.classList.add('reordering');
                 if (navigator.vibrate) navigator.vibrate(10);
@@ -837,6 +1061,68 @@ function photosToPdfPage(boot) {
                 requestAnimationFrame(edgeScroll);
             }
 
+            /** A box dragged out from a space between photos (with a mouse) selects those it touches; a click there clears the selection. */
+            function startBox(e) {
+                // Ctrl or Shift: added to what's selected already.
+                const add = e.ctrlKey || e.metaKey || e.shiftKey;
+                box = { id: e.pointerId, x: e.clientX + scrollX, y: e.clientY + scrollY, cx: e.clientX, cy: e.clientY, add, before: new Set(selected), el: null };
+                try {
+                    wrap.setPointerCapture(e.pointerId);
+                } catch {
+                    // Without capture the box just ends if the pointer leaves the photos.
+                }
+            }
+            function moveBox(e) {
+                box.cx = e.clientX;
+                box.cy = e.clientY;
+                if (!box.el) {
+                    if (Math.hypot(box.cx + scrollX - box.x, box.cy + scrollY - box.y) < 6) return;
+                    box.el = document.createElement('div');
+                    box.el.className = 'lasso';
+                    document.body.append(box.el);
+                    document.body.classList.add('boxing');
+                    boxScroll();
+                }
+                drawBox();
+            }
+            function drawBox() {
+                // Where it started is kept on the page, so it stretches as the page scrolls.
+                const x = box.x - scrollX;
+                const y = box.y - scrollY;
+                const left = Math.min(x, box.cx);
+                const top = Math.min(y, box.cy);
+                const right = Math.max(x, box.cx);
+                const bottom = Math.max(y, box.cy);
+                Object.assign(box.el.style, { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+                selected.clear();
+                if (box.add) for (const u of box.before) selected.add(u);
+                for (const li of wrap.querySelectorAll('.ogrid > li')) {
+                    const r = li.getBoundingClientRect();
+                    if (r.left < right && r.right > left && r.top < bottom && r.bottom > top) selected.add(li.dataset.u);
+                }
+                update();
+            }
+            function boxScroll() {
+                if (!box?.el) return;
+                const step = edgeStep(box.cy, 40, 12);
+                if (step) {
+                    const before = scrollY;
+                    scrollBy(0, step);
+                    if (scrollY !== before) drawBox();
+                }
+                requestAnimationFrame(boxScroll);
+            }
+            function endBox() {
+                if (box.el) {
+                    box.el.remove();
+                    document.body.classList.remove('boxing');
+                } else if (!box.add) {
+                    selected.clear();
+                    update();
+                }
+                box = null;
+            }
+
             function drop() {
                 if (!drag) return;
                 clearTimeout(drag.timer);
@@ -846,15 +1132,27 @@ function photosToPdfPage(boot) {
                     drag.li.classList.remove('placeholder');
                     document.body.classList.remove('reordering');
                     if (drag.target) drag.target.appendChild(drag.li);
+                    // The others go either side of it, in the order they were in.
+                    const k = drag.members.indexOf(drag.li);
+                    drag.li.before(...drag.members.slice(0, k));
+                    drag.li.after(...drag.members.slice(k + 1));
                 }
                 drag = null;
                 if (!lifted) return;
+                // Until the drag's click has gone by (wherever it lands, if anywhere).
                 dragged = true;
+                setTimeout(() => {
+                    dragged = false;
+                });
                 const pdfLists = Array.from(wrap.querySelectorAll('.pdf .ogrid'), uuidsIn);
-                groups = pdfLists.filter((g) => g.length);
-                // A PDF emptied, or "New PDF" used: redrawn once the drag's click has gone by, to number
-                // the PDFs and for a fresh "New PDF". Otherwise the photo's already where it goes.
-                if (groups.length !== pdfLists.length - 1 || pdfLists.at(-1).length) return setTimeout(drawGroups);
+                if (simple) {
+                    groups = split(pdfLists[0]); // its one list, in even PDFs
+                } else {
+                    groups = pdfLists.filter((g) => g.length);
+                    // A PDF emptied, or "New PDF" used: redrawn once the drag's click has gone by, to number
+                    // the PDFs and for a fresh "New PDF". Otherwise the photo's already where it goes.
+                    if (groups.length !== pdfLists.length - 1 || pdfLists.at(-1).length) return setTimeout(drawGroups);
+                }
                 for (const ul of wrap.querySelectorAll('.ogrid')) ul.style.minHeight = '';
                 renumber(wrap);
                 update();
@@ -923,6 +1221,93 @@ function photosToPdfPage(boot) {
             el.prepend(img);
         }
 
+        // ----- Enlarge on hover -----
+
+        const peekBox = document.createElement('div');
+        peekBox.className = 'peek';
+        peekBox.hidden = true;
+        document.body.append(peekBox);
+        let peeking = null; // the photo pointed at (shown bigger once the wait's over)
+        let peekUrl = null; // its full size object URL, once it's shown
+        let peekTimer = null;
+        /** How long to point at a photo before it's shown bigger (ms), and the most it's shown at (px). */
+        const PEEK_WAIT = 400;
+        const PEEK_MAX = 420;
+        // Scrolling moves the tiles out from under it.
+        addEventListener('scroll', () => hidePeek(), { passive: true });
+
+        function setEnlarge(on) {
+            enlargeOn = on;
+            if (!on) hidePeek();
+            try {
+                localStorage.setItem(ENLARGE_KEY, on ? '1' : '0');
+            } catch {
+                // Not remembered next time; it still applies now.
+            }
+        }
+
+        /**
+         * Points at the photo on tile `el`: after a moment it's shown bigger beside its tile. Each photo
+         * waits its moment, so moving along the photos doesn't flash each one up.
+         */
+        function peek(el) {
+            const p = photos[+el.dataset.i];
+            if (!enlargeOn || peeking === p) return;
+            hidePeek();
+            peeking = p;
+            peekTimer = setTimeout(() => showPeek(el, p), PEEK_WAIT);
+        }
+
+        /** Beside its tile, on the side with more room: its small copy straight away, then the photo itself. */
+        function showPeek(el, p) {
+            const small = el.querySelector('img');
+            if (peeking !== p || !el.isConnected || !small?.naturalWidth) return; // still loading, or this browser can't show it
+            const r = el.getBoundingClientRect();
+            const gap = 8;
+            const edge = 12;
+            const roomRight = innerWidth - r.right - gap - edge;
+            const roomLeft = r.left - gap - edge;
+            const right = roomRight >= roomLeft;
+            const fit = Math.min(
+                Math.min(PEEK_MAX, Math.max(roomRight, roomLeft)) / small.naturalWidth,
+                Math.min(PEEK_MAX, innerHeight - 2 * edge) / small.naturalHeight,
+            );
+            const w = Math.round(small.naturalWidth * fit);
+            const h = Math.round(small.naturalHeight * fit);
+            const top = Math.min(Math.max(r.top + r.height / 2 - h / 2, edge), innerHeight - edge - h);
+            const img = new Image();
+            img.alt = p.name;
+            img.width = w;
+            img.height = h;
+            img.src = small.src;
+            Object.assign(peekBox.style, { left: `${right ? r.right + gap : r.left - gap - w}px`, top: `${top}px` });
+            peekBox.replaceChildren(img);
+            peekBox.hidden = false;
+            photoBlob(p).then(async (blob) => {
+                if (!img.isConnected) return; // moved off it, or onto another
+                const url = URL.createObjectURL(blob);
+                const full = new Image();
+                full.src = url;
+                try {
+                    await full.decode();
+                } catch {
+                    // Leaves the small copy showing.
+                }
+                if (!img.isConnected || !full.naturalWidth) return URL.revokeObjectURL(url);
+                peekUrl = url;
+                img.src = url;
+            }, () => { }); // the small copy stays
+        }
+
+        function hidePeek() {
+            clearTimeout(peekTimer);
+            peeking = null;
+            peekBox.hidden = true;
+            peekBox.replaceChildren();
+            if (peekUrl) URL.revokeObjectURL(peekUrl);
+            peekUrl = null;
+        }
+
         /** How big a tile's copy is (its short side, px): enough for a sharp tile on a high-resolution screen. */
         const THUMB = 240;
         let thumbing = Promise.resolve(); // one at a time: decoding a photo takes a lot of memory for a moment
@@ -966,6 +1351,7 @@ function photosToPdfPage(boot) {
         /** Makes and saves each PDF in turn, so only one is ever held in memory. */
         async function save() {
             error = null;
+            hidePeek();
             const list = groups.map((g) => g.map(byUuid));
             // "Job #2 Photos - PO WA123": the job, then its PO number (ServiceM8's label for it) if it has one.
             const po = job.poNumber ? ` - PO ${job.poNumber}` : '';

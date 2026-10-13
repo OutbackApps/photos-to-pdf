@@ -190,7 +190,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
     }
 
     /** The popup for a job with these photos, as ServiceM8 opens it. */
-    async function open(photos, { direct = true, slowPhotos = false, storageLetsBrowser = false, limit = 0, failOnce = '', width = 900 } = {}) {
+    async function open(photos, { direct = true, slowPhotos = false, storageLetsBrowser = false, limit = 0, failOnce = '', width = 900, view } = {}) {
         const fake = fakeServiceM8(photos);
         globalThis.fetch = (url, init) => (/servicem8\.com|storage\.example/.test(String(url)) ? fake.fetch(url, init) : realFetch(url, init));
         const context = await browser.createBrowserContext(); // its own storage: "photos per PDF" starts at the default
@@ -217,6 +217,8 @@ describe.skipIf(!BROWSER)('the popup', () => {
         });
         const files = direct ? Object.fromEntries(photos.map((p) => [p.uuid, p.bytes.toString('base64')])) : {};
         await page.evaluateOnNewDocument(pageApi, direct, files, slowPhotos, limit, failOnce);
+        // Simple, unless the test's about arranging each PDF (as if Detailed was used last).
+        if (view) await page.evaluateOnNewDocument((v) => localStorage.setItem('photos-to-pdf:view', v), view);
         await page.goto('https://test.local/');
         await page.waitForSelector('.groups .ph');
         return { page, context, fake, errors, invoked, fetchedFromStorage };
@@ -269,11 +271,20 @@ describe.skipIf(!BROWSER)('the popup', () => {
         await wait(120);
     }
     const tile = (section, k) => `.group:nth-child(${section}) li:nth-child(${k}) .ph`;
-    async function tap(page, sel) {
+    /** Clicks a photo, with Control or Shift held if given. */
+    async function tap(page, sel, key) {
         const at = await centre(page, sel);
+        if (key) await page.keyboard.down(key);
         await page.mouse.click(at.x, at.y);
+        if (key) await page.keyboard.up(key);
         await wait(60);
     }
+    async function doubleClick(page, sel) {
+        const at = await centre(page, sel);
+        await page.mouse.click(at.x, at.y, { count: 2 });
+        await wait(60);
+    }
+    const selectedPhotos = (page) => page.$$eval('.ph.sel', (els) => els.map((el) => Number(el.parentElement.dataset.u.slice(-4))));
 
     /** Each page's size and corner colours, as pdf.js draws them. */
     async function readPdf(context, bytes) {
@@ -303,7 +314,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
     }
 
     test('every photo starts in a PDF, split by the number per PDF (50, and no more than 50)', async () => {
-        const { page, context, errors } = await open(await jobPhotos(Array(60).fill('jpeg')));
+        const { page, context, errors } = await open(await jobPhotos(Array(60).fill('jpeg')), { view: 'detailed' });
         try {
             assert.equal(await page.$eval('#per', (el) => el.value), '50');
             const s = await sections(page);
@@ -320,8 +331,8 @@ describe.skipIf(!BROWSER)('the popup', () => {
         }
     }, 60000);
 
-    test('tapping leaves a gap or puts a photo back at the end; the number per PDF moves nothing', async () => {
-        const { page, context } = await open(await jobPhotos(Array(6).fill('jpeg')));
+    test('double-clicking leaves a gap, or puts a photo back at the end; the number per PDF moves nothing', async () => {
+        const { page, context } = await open(await jobPhotos(Array(6).fill('jpeg')), { view: 'detailed' });
         try {
             await setPerPdf(page, 2);
             assert.deepEqual((await sections(page)).map((x) => x.count), ['6 of 2, over the limit', '', '']);
@@ -333,14 +344,14 @@ describe.skipIf(!BROWSER)('the popup', () => {
 
             // Left out: a gap in PDF 1, and the other tiles aren't redrawn.
             await page.$eval(tile(2, 1), (el) => { el.dataset.kept = 'yes'; });
-            await tap(page, tile(1, 1));
+            await doubleClick(page, tile(1, 1));
             let s = await sections(page);
             assert.deepEqual(s.map((x) => x.photos), [[2], [3, 4], [5, 6], [], [1]]);
             assert.equal(await page.$eval(tile(2, 1), (el) => el.dataset.kept), 'yes');
             assert.ok(await page.$eval(tile(5, 1), (el) => el.classList.contains('out') && !el.querySelector('.tick')));
 
             // Put back: at the end, in a new PDF as the last one's full.
-            await tap(page, tile(5, 1));
+            await doubleClick(page, tile(5, 1));
             s = await sections(page);
             assert.deepEqual(s.map((x) => x.photos), [[2], [3, 4], [5, 6], [1], [], []]);
             assert.equal(await text(page, '#save'), 'Save 4 PDFs (6 photos) to job diary');
@@ -356,7 +367,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
     }, 60000);
 
     test("dragging across the page highlights nothing, and its text can't be dragged about", async () => {
-        const { page, context } = await open(await jobPhotos(Array(3).fill('jpeg')));
+        const { page, context } = await open(await jobPhotos(Array(3).fill('jpeg')), { view: 'detailed' });
         try {
             // From the "PDF 1" heading, across the links at the top.
             const from = await centre(page, '.group:nth-child(1) h2');
@@ -382,7 +393,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
     }, 60000);
 
     test('photos are dragged between PDFs, into a new one or left out, with a warning over the limit', async () => {
-        const { page, context } = await open(await jobPhotos(Array(6).fill('jpeg')));
+        const { page, context } = await open(await jobPhotos(Array(6).fill('jpeg')), { view: 'detailed' });
         try {
             await setPerPdf(page, 2);
             await page.click('#resplit');
@@ -411,9 +422,123 @@ describe.skipIf(!BROWSER)('the popup', () => {
         }
     }, 60000);
 
+    test('Simple: one list to reorder and leave photos out of, saved as even PDFs; the view is remembered', async () => {
+        const photos = await jobPhotos([1, 3, 5, 6, 8]);
+        const { page, context, errors } = await open(photos);
+        try {
+            let s = await sections(page);
+            assert.deepEqual(s.map((x) => x.label), ['Photos', 'Left out']);
+            assert.deepEqual(s.map((x) => x.count), ['5', '']);
+            assert.ok(await page.$eval('.per', (el) => el.hidden));
+
+            // "Left out" is as tall empty as with a photo in it.
+            const outHeight = () => page.$eval('.out .ogrid', (el) => el.offsetHeight);
+            const emptyHeight = await outHeight();
+            await drag(page, tile(1, 1), tile(1, 4));
+            await doubleClick(page, tile(1, 2));
+            assert.equal(await outHeight(), emptyHeight);
+            s = await sections(page);
+            assert.deepEqual(s.map((x) => x.photos), [[2, 4, 1, 5], [3]]);
+            assert.deepEqual(await page.$$eval('.tick', (els) => els.map((e) => e.textContent)), ['1', '2', '3', '4']);
+            assert.equal(await text(page, '#save'), 'Save PDF of 4 photos to job diary');
+
+            // Detailed shows the same photos as PDFs; back in Simple, they're split by its number per PDF.
+            await page.click('#view-detailed');
+            assert.deepEqual((await sections(page)).map((x) => x.photos), [[2, 4, 1, 5], [], [3]]);
+            await setPerPdf(page, 2);
+            await page.click('#view-simple');
+            assert.deepEqual((await sections(page)).map((x) => x.photos), [[2, 4, 1, 5], [3]]);
+            assert.equal(await text(page, '#save'), 'Save 2 PDFs (4 photos) to job diary');
+            assert.equal(await page.evaluate(() => localStorage.getItem('photos-to-pdf:view')), 'simple');
+
+            await page.click('#save');
+            await page.waitForSelector('.done', { timeout: 30000 });
+            const posts = await page.evaluate(() => window.__posts);
+            assert.deepEqual(posts.map((p) => p.name), ['Job #1042 Photos - PO 77 (1 of 2).pdf', 'Job #1042 Photos - PO 77 (2 of 2).pdf']);
+            const pdfs = posts.map((p) => Buffer.from(p.b64, 'base64'));
+            const pages = [...(await readPdf(context, pdfs[0])), ...(await readPdf(context, pdfs[1]))];
+            assert.deepEqual(pages.map((p) => p.seen), [SEEN[3], SEEN[6], SEEN[1], SEEN[8]]);
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 90000);
+
+    test('photos are selected by clicking (Ctrl, Shift) or a box, then dragged or left out together', async () => {
+        const { page, context, errors } = await open(await jobPhotos(Array(8).fill('jpeg')));
+        try {
+            const photosIn = async () => (await sections(page)).map((x) => x.photos);
+            await tap(page, tile(1, 2));
+            assert.deepEqual(await selectedPhotos(page), [2]);
+            assert.equal(await text(page, '#sel-count'), '1 selected');
+            await wait(450); // not so soon after that it's a double-click
+            await tap(page, tile(1, 2)); // on its own again: unselected
+            assert.deepEqual(await selectedPhotos(page), []);
+            assert.ok(await page.$eval('#sel-count', (el) => el.hidden));
+
+            await wait(450);
+            await tap(page, tile(1, 2));
+            await tap(page, tile(1, 4), 'Shift');
+            await tap(page, tile(1, 3), 'Control');
+            await tap(page, tile(1, 7), 'Control');
+            assert.deepEqual(await selectedPhotos(page), [2, 4, 7]);
+
+            // Dragging one drags them all, in order, to where it's let go.
+            await drag(page, tile(1, 4), tile(1, 1));
+            assert.deepEqual(await photosIn(), [[2, 4, 7, 1, 3, 5, 6, 8], []]);
+            assert.deepEqual(await page.$$eval('.tick', (els) => els.map((e) => e.textContent)), ['1', '2', '3', '4', '5', '6', '7', '8']);
+            assert.deepEqual(await selectedPhotos(page), [2, 4, 7]);
+
+            // Delete leaves them out, and the selection's cleared.
+            await page.keyboard.press('Delete');
+            assert.deepEqual(await photosIn(), [[1, 3, 5, 6, 8], [2, 4, 7]]);
+            assert.deepEqual(await selectedPhotos(page), []);
+
+            // A box dragged out from the space below the photos selects those it touches.
+            const below = await page.$eval('.pdf', (el) => el.getBoundingClientRect().bottom + 30);
+            const first = await centre(page, tile(1, 1));
+            const second = await centre(page, tile(1, 2));
+            await page.mouse.move(first.x, below);
+            await page.mouse.down();
+            for (let k = 1; k <= 8; k++) await page.mouse.move(first.x + ((second.x - first.x) * k) / 8, below + ((second.y - below) * k) / 8);
+            assert.ok(await page.$('.lasso'));
+            await page.mouse.up();
+            assert.deepEqual(await selectedPhotos(page), [1, 3]);
+            await page.click('#sel-out');
+            assert.deepEqual(await photosIn(), [[5, 6, 8], [1, 2, 3, 4, 7]]);
+
+            // Left out ones are put back at the end.
+            await tap(page, tile(2, 1));
+            assert.ok(await page.$eval('#sel-out', (el) => el.hidden));
+            await page.click('#sel-back');
+            assert.deepEqual(await photosIn(), [[5, 6, 8, 1], [2, 3, 4, 7]]);
+
+            // Ctrl+A selects every photo; Esc, or a click between photos, clears it.
+            await page.keyboard.down('Control');
+            await page.keyboard.press('a');
+            await page.keyboard.up('Control');
+            assert.equal((await selectedPhotos(page)).length, 8);
+            await page.keyboard.press('Escape');
+            assert.deepEqual(await selectedPhotos(page), []);
+            await tap(page, tile(1, 1));
+            await page.mouse.click(first.x, below);
+            assert.deepEqual(await selectedPhotos(page), []);
+
+            // A double-click leaves one out on its own: what was selected before stays selected.
+            await tap(page, tile(1, 1));
+            await tap(page, tile(1, 2), 'Control');
+            await doubleClick(page, tile(1, 3));
+            assert.deepEqual(await photosIn(), [[5, 6, 1], [2, 3, 4, 7, 8]]);
+            assert.deepEqual(await selectedPhotos(page), [5, 6]);
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 90000);
+
     test('saving: device photos first, then each PDF, full size and the right way round', async () => {
         const photos = await jobPhotos([6, 3, 'png', 8, 'jpeg', 5]);
-        const { page, context, errors } = await open(photos, { slowPhotos: true });
+        const { page, context, errors } = await open(photos, { slowPhotos: true, view: 'detailed' });
         try {
             const device = path.join(require('node:os').tmpdir(), 'photos-to-pdf-device.jpg');
             fs.writeFileSync(device, photos[4].bytes);

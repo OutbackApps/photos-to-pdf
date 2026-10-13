@@ -8,12 +8,21 @@ Each page is just the photo, filling the page. The page is shaped to fit the pho
 
 Once they're saved, the popup says which PDFs were saved and to reopen the job to see them (ServiceM8 doesn't refresh an open job card's diary by itself), with anything that didn't work, such as photos that couldn't be read. **Done** closes it.
 
-**The PDFs:** the photos are shown in sections, **PDF 1**, **PDF 2** and so on, each photo with its page number, then **New PDF** and **Left out**. They're named "Job #123 Photos (1 of 3).pdf" and so on (just "Job #123 Photos.pdf" if there's one), with the job's PO number when it has one: "Job #123 Photos - PO WA4567 (1 of 3).pdf".
-- Tap or click a photo to leave it out: it moves to **Left out**. Tap it there to put it back, at the end.
-- **Leave all out** / **Put all back** at the top. To pick a few photos from a lot, leave them all out, then tap the ones you want back, in the order you want them.
-- Drag a photo (press and hold first on a phone) to a new spot in its PDF, into another PDF, into **New PDF** to start another one, or into **Left out**. The others move out of the way. Holding near the top or bottom edge scrolls.
+**Simple and Detailed:** two views, switched at the top left; the one last used is remembered on that device (Simple to start with).
+- **Simple** shows the photos in one list, in page order, then **Left out**: reorder them, leave some out, and save. They're saved as PDFs of up to the number per PDF (set in Detailed), in that order.
+- **Detailed** is described below: each PDF arranged on its own. Switching back to Simple keeps the photos' order but splits them into even PDFs again.
+
+**Selecting and moving photos** (both views):
+- Click a photo to select it. **Ctrl**-click (Cmd on a Mac) adds or removes one, **Shift**-click selects every photo from the last one clicked, and dragging a box from a space between photos selects those it touches. On a phone, tap photos to select or unselect them. **Ctrl+A** selects every photo; **Esc**, **Clear**, or a click between photos clears the selection.
+- Drag a selected photo (press and hold first on a phone) and all the selected ones go with it, in their order, to where it's let go: a new spot in its PDF, another PDF, **New PDF** to start another one, or **Left out**. The others move out of the way. A photo that isn't selected is dragged on its own. Holding near the top or bottom edge scrolls.
+- The bar above the save button says how many are selected, with **Leave out** (or the **Delete** key) and **Put back** (at the end). **Double-click** (or double-tap) a photo to leave just it out, or put it back; anything else selected stays selected.
+- **Leave all out** / **Put all back** at the top. To pick a few photos from a lot, leave them all out, then put back the ones you want, in the order you want them.
+
+**The PDFs (Detailed):** the photos are shown in sections, **PDF 1**, **PDF 2** and so on, each photo with its page number, then **New PDF** and **Left out**. They're named "Job #123 Photos (1 of 3).pdf" and so on (just "Job #123 Photos.pdf" if there's one), with the job's PO number when it has one: "Job #123 Photos - PO WA4567 (1 of 3).pdf". Leaving a photo out leaves a gap in its PDF.
 
 **Too big for ServiceM8:** ServiceM8 turns away files over a size it doesn't publish. When it turns a PDF away, that PDF is saved in parts instead ("Job #123 Photos (1 of 3) part 1.pdf", "… part 2.pdf"), with the photos as they were and in order, and the finished view says so. The size it turned away is remembered on that device, so big PDFs are split before saving next time. A single photo too big for ServiceM8 on its own is made smaller again, just enough to fit.
+
+**Enlarge on hover:** with a mouse, tick it (top right) and point at a photo for a moment to see it bigger beside it, until the pointer leaves it. Remembered on that device; not shown on touch screens.
 
 **Photos per PDF:** the number next to the save button, remembered on that device. A PDF with more photos than that is shown in red as over the limit, but that's only a warning: it's saved as it is. Changing the number doesn't move any photos. **Split into PDFs of 50** (shown when the PDFs aren't already split that way) puts the photos into PDFs of that many, keeping their order. Leaving a photo out leaves a gap; nothing else moves.
 
