@@ -348,7 +348,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
             let s = await sections(page);
             assert.deepEqual(s.map((x) => x.photos), [[2], [3, 4], [5, 6], [], [1]]);
             assert.equal(await page.$eval(tile(2, 1), (el) => el.dataset.kept), 'yes');
-            assert.ok(await page.$eval(tile(5, 1), (el) => el.classList.contains('out') && !el.querySelector('.tick')));
+            assert.ok(await page.$eval(tile(5, 1), (el) => el.classList.contains('out')));
 
             // Put back: at the end, in a new PDF as the last one's full.
             await doubleClick(page, tile(5, 1));
@@ -439,7 +439,6 @@ describe.skipIf(!BROWSER)('the popup', () => {
             assert.equal(await outHeight(), emptyHeight);
             s = await sections(page);
             assert.deepEqual(s.map((x) => x.photos), [[2, 4, 1, 5], [3]]);
-            assert.deepEqual(await page.$$eval('.tick', (els) => els.map((e) => e.textContent)), ['1', '2', '3', '4']);
             assert.equal(await text(page, '#save'), 'Save PDF of 4 photos to job diary');
 
             // Detailed shows the same photos as PDFs; back in Simple, they're split by its number per PDF.
@@ -486,7 +485,6 @@ describe.skipIf(!BROWSER)('the popup', () => {
             // Dragging one drags them all, in order, to where it's let go.
             await drag(page, tile(1, 4), tile(1, 1));
             assert.deepEqual(await photosIn(), [[2, 4, 7, 1, 3, 5, 6, 8], []]);
-            assert.deepEqual(await page.$$eval('.tick', (els) => els.map((e) => e.textContent)), ['1', '2', '3', '4', '5', '6', '7', '8']);
             assert.deepEqual(await selectedPhotos(page), [2, 4, 7]);
 
             // Delete leaves them out, and the selection's cleared.

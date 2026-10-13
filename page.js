@@ -37,8 +37,6 @@ button:disabled { cursor: default; }
 .ph { position: relative; display: block; width: 100%; aspect-ratio: 1; padding: 0; overflow: hidden; border: 0; border-radius: 6px; background: var(--field); }
 .ph img { pointer-events: none; -webkit-user-drag: none; width: 100%; height: 100%; object-fit: cover; display: block; }
 .ph .ph-msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 4px; font-size: 11px; color: var(--muted); text-align: center; word-break: break-word; }
-.tick { position: absolute; top: 6px; left: 6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: rgba(0, 0, 0, .35); color: #fff; font-size: 12px; line-height: 22px; text-align: center; }
-.ph.on .tick { background: var(--brand); font-weight: 600; }
 .groups .ph { cursor: grab; }
 .ph.out img { opacity: .4; filter: grayscale(1); }
 .ogrid li.placeholder .ph { opacity: .25; }
@@ -825,12 +823,13 @@ function photosToPdfPage(boot) {
             return 0;
         }
 
-        /** Page numbers and counts as photos move about, and which PDFs are over the limit. */
+        /** Counts as photos move about, which PDFs are over the limit, and which photos are left out. */
         function renumber(wrap) {
             for (const section of wrap.querySelectorAll('.group')) {
                 const items = Array.from(section.querySelectorAll('.ogrid > li'));
                 const inPdf = section.classList.contains('pdf');
-                for (const [k, li] of items.entries()) markTile(li.firstElementChild, inPdf ? k + 1 : null);
+                // A left out photo is greyed.
+                for (const li of items) li.firstElementChild.classList.toggle('out', !inPdf);
                 // Simple's one list is split up when saved, so it's never over the limit.
                 const over = !simple && inPdf && items.length > perPdf;
                 section.classList.toggle('over', over);
@@ -839,23 +838,6 @@ function photosToPdfPage(boot) {
                 else if (items.length) count = String(items.length);
                 section.querySelector('.count').textContent = count;
             }
-        }
-
-        /** A photo in a PDF shows its page number; a left out one is greyed. */
-        function markTile(el, page) {
-            el.classList.toggle('on', page !== null);
-            el.classList.toggle('out', page === null);
-            let tick = el.querySelector('.tick');
-            if (page === null) {
-                tick?.remove();
-                return;
-            }
-            if (!tick) {
-                tick = document.createElement('span');
-                tick.className = 'tick';
-                el.append(tick);
-            }
-            tick.textContent = page;
         }
 
         /**

@@ -18,7 +18,7 @@ Once they're saved, the popup says which PDFs were saved and to reopen the job t
 - The bar above the save button says how many are selected, with **Leave out** (or the **Delete** key) and **Put back** (at the end). **Double-click** (or double-tap) a photo to leave just it out, or put it back; anything else selected stays selected.
 - **Leave all out** / **Put all back** at the top. To pick a few photos from a lot, leave them all out, then put back the ones you want, in the order you want them.
 
-**The PDFs (Detailed):** the photos are shown in sections, **PDF 1**, **PDF 2** and so on, each photo with its page number, then **New PDF** and **Left out**. They're named "Job #123 Photos (1 of 3).pdf" and so on (just "Job #123 Photos.pdf" if there's one), with the job's PO number when it has one: "Job #123 Photos - PO WA4567 (1 of 3).pdf". Leaving a photo out leaves a gap in its PDF.
+**The PDFs (Detailed):** the photos are shown in sections, **PDF 1**, **PDF 2** and so on, then **New PDF** and **Left out**. They're named "Job #123 Photos (1 of 3).pdf" and so on (just "Job #123 Photos.pdf" if there's one), with the job's PO number when it has one: "Job #123 Photos - PO WA4567 (1 of 3).pdf". Leaving a photo out leaves a gap in its PDF.
 
 **Too big for ServiceM8:** ServiceM8 turns away files over a size it doesn't publish. When it turns a PDF away, that PDF is saved in parts instead ("Job #123 Photos (1 of 3) part 1.pdf", "… part 2.pdf"), with the photos as they were and in order, and the finished view says so. The size it turned away is remembered on that device, so big PDFs are split before saving next time. A single photo too big for ServiceM8 on its own is made smaller again, just enough to fit.
 
