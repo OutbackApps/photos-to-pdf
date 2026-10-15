@@ -23,6 +23,9 @@
  *   photos_to_pdf_photo    invoked by the page         -> a piece of a photo (when the browser can't fetch it at all)
  *   photos_to_pdf_save     invoked by the page         -> saves a PDF to the job diary (when the browser can't)
  *   photos_to_pdf_upload   invoked by the page         -> adds a photo from the device to the job diary (likewise)
+ *
+ * The PDFs' name is a template set in ServiceM8 (Settings → Preferences → Add-ons, the pdf_name
+ * preference), with job fields in braces like ServiceM8's email templates; see fillTemplate in page.js.
  */
 
 const { shell, pageScript } = require('./page');
@@ -111,9 +114,15 @@ async function jobPhotos(event, jobUUIDArg) {
         .map((a) => ({ uuid: a.uuid, name: str(a.attachment_name) || 'Photo', timestamp: str(a.timestamp) }))
         .sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
 
+    // The job's fields, for the PDF name's template ({job.purchase_order_number} and so on).
+    const fields = Object.fromEntries(
+        Object.entries(job)
+            .filter(([, v]) => typeof v === 'string' || typeof v === 'number')
+            .map(([k, v]) => [k, String(v).trim()]),
+    );
     log('info', 'Listed job photos', { accountUUID: event.auth.accountUUID, jobUUID, photos: photos.length });
     return {
-        job: { uuid: jobUUID, number: str(job.generated_job_id), poNumber: str(job.purchase_order_number) },
+        job: { uuid: jobUUID, fields },
         photos,
         token: event.auth.accessToken,
     };
@@ -255,10 +264,16 @@ async function uploadFile(event, jobUUID, name, bytes, type) {
 /** Text that's safe in HTML, attribute values included. */
 const escapeHtml = (s) => s.replaceAll(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+/** The PDF name's template when the account hasn't set one (the same as `default` in addon.jsonc's preferences). */
+const DEFAULT_NAME = 'Job #{job.generated_job_id} Photos[ - PO {job.purchase_order_number}]';
+
 function page(event) {
     const jobUUID = needUuid(event.eventArgs?.jobUUID, 'job');
-    const boot = { jobUUID, staffUUID: event.auth.staffUUID || null, token: event.auth.accessToken };
-    log('info', 'Opened Photos to PDF', { accountUUID: event.auth.accountUUID, jobUUID });
+    // Set in ServiceM8's Settings → Preferences → Add-ons; the popup can change it before saving.
+    const nameTemplate = str(event.preferences?.pdf_name) || DEFAULT_NAME;
+    const boot = { jobUUID, staffUUID: event.auth.staffUUID || null, token: event.auth.accessToken, nameTemplate };
+    // Whether ServiceM8 sent the preferences at all: Addon Kit says they have no effect, its docs say they do.
+    log('info', 'Opened Photos to PDF', { accountUUID: event.auth.accountUUID, jobUUID, preferences: Boolean(event.preferences), nameTemplate });
     // The page's data goes in an attribute, not the script, so it only needs HTML escaping.
     const app = `<div id="app" data-boot="${escapeHtml(JSON.stringify(boot))}"></div>`;
     return shell("Photos to PDF", app, pageScript());

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { handler } = require('..');
+const { fillTemplate, templateParts } = require('../page');
 
 // cspell:ignore ftyp ftypqt avifmif miaf avismsf
 const JOB = '11111111-2222-3333-4444-555555555555';
@@ -24,6 +25,19 @@ function mockFetch(routes) {
         return new Response('not found', { status: 404 });
     });
     return calls;
+}
+
+/** addon.jsonc. JSONC: drop comments, but not `//` inside strings (the icon URLs have them). */
+function readManifest() {
+    const jsonc = fs.readFileSync(path.join(__dirname, '..', 'addon.jsonc'), 'utf8');
+    return JSON.parse(jsonc.replaceAll(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_, s) => s ?? ''));
+}
+const DEFAULT_NAME = readManifest().preferences[0].default;
+
+/** The data the popup page is started with. */
+function bootOf(html) {
+    const attr = html.match(/data-boot="([^"]*)"/)[1];
+    return JSON.parse(attr.replaceAll(/&(lt|gt|quot|amp);/g, (_, e) => ({ lt: '<', gt: '>', quot: '"', amp: '&' })[e]));
 }
 
 // Keep test output clean: the handler logs JSON lines.
@@ -48,9 +62,31 @@ test("photos_to_pdf passes the page its data without letting it break out of the
     const staffUUID = '"></div><script>alert(1)</script>&amp;';
     const { eventResponse: html } = await handler({ ...event('photos_to_pdf', { jobUUID: JOB }), auth: { ...auth, staffUUID } });
     assert.ok(!html.includes('<script>alert'));
-    const attr = html.match(/data-boot="([^"]*)"/)[1];
-    const unescaped = attr.replaceAll(/&(lt|gt|quot|amp);/g, (_, e) => ({ lt: '<', gt: '>', quot: '"', amp: '&' })[e]);
-    assert.deepEqual(JSON.parse(unescaped), { jobUUID: JOB, staffUUID, token: 'test-token' });
+    assert.deepEqual(bootOf(html), { jobUUID: JOB, staffUUID, token: 'test-token', nameTemplate: DEFAULT_NAME });
+});
+
+test("photos_to_pdf passes the page the account's PDF name template", async () => {
+    const boot = async (preferences) => bootOf((await handler({ ...event('photos_to_pdf', { jobUUID: JOB }), preferences })).eventResponse);
+    assert.equal((await boot({ pdf_name: ' {job.job_address} photos ' })).nameTemplate, '{job.job_address} photos');
+    // Not set, or cleared: the default (the names before templates).
+    for (const preferences of [undefined, {}, { pdf_name: '  ' }]) assert.equal((await boot(preferences)).nameTemplate, DEFAULT_NAME);
+});
+
+test('fillTemplate fills in job fields, like ServiceM8 templates', () => {
+    const job = { generated_job_id: '123', purchase_order_number: 'WA4567', job_address: '1 Main St', status: '' };
+    const fill = (template) => fillTemplate(template, { job });
+    assert.equal(fill(DEFAULT_NAME), 'Job #123 Photos - PO WA4567');
+    const withPo = 'Job #{job.generated_job_id} Photos[ - PO {job.purchase_order_number}]';
+    assert.equal(fill(withPo), 'Job #123 Photos - PO WA4567');
+    assert.equal(fillTemplate(withPo, { job: { ...job, purchase_order_number: '' } }), 'Job #123 Photos');
+    assert.equal(fill('{JOB.Job_Address}  -   {job.generated_job_id}'), '1 Main St - 123');
+    // A field it doesn't know stays as written; a section with an empty one goes.
+    assert.equal(fill('{job.nope} {client.name} [{job.status}x]'), '{job.nope} {client.name}');
+    // A section without empty fields is kept, without its brackets; a lone bracket stays.
+    assert.equal(fill('[Photos] [{job.nope}] a [ b'), 'Photos {job.nope} a [ b');
+    // A field's value isn't filled in again.
+    assert.equal(fillTemplate('{job.a}', { job: { a: '{job.b}', b: 'x' } }), '{job.b}');
+    assert.equal(fill(''), '');
 });
 
 test('photos_to_pdf with a bad job UUID returns an error page', async () => {
@@ -72,7 +108,7 @@ test('photos_to_pdf_photos lists active photos, oldest first', async () => {
             ]),
     });
     const data = parse(await handler(event('photos_to_pdf_photos', { jobUUID: JOB })));
-    assert.deepEqual(data.job, { uuid: JOB, number: '42', poNumber: 'WO-7' });
+    assert.deepEqual(data.job, { uuid: JOB, fields: { generated_job_id: '42', purchase_order_number: 'WO-7' } });
     assert.deepEqual(
         data.photos.map((p) => p.uuid),
         ['a', 'b', 'e'],
@@ -228,13 +264,27 @@ test('unknown events return nothing', async () => {
     assert.deepEqual(await handler(event('nope')), {});
 });
 
+test('templateParts says which [ ] sections are left out, and for which empty fields', () => {
+    const job = { generated_job_id: '123', purchase_order_number: '', job_address: '1 Main St' };
+    assert.deepEqual(templateParts('Job {job.generated_job_id}[ - PO {job.purchase_order_number}][ at {job.job_address}]', { job }), [
+        { text: 'Job ' },
+        { text: '123' },
+        { text: ' - PO ', dropped: true, empty: ['purchase_order_number'] },
+        { text: ' at 1 Main St' },
+    ]);
+});
+
 test('addon.jsonc is valid and its events are handled', () => {
-    // JSONC: drop comments, but not `//` inside strings (the icon URLs have them).
-    const jsonc = fs.readFileSync(path.join(__dirname, '..', 'addon.jsonc'), 'utf8');
-    const manifest = JSON.parse(jsonc.replaceAll(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_, s) => s ?? ''));
+    const manifest = readManifest();
     const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
     assert.match(manifest.slug, /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/);
     assert.ok(manifest.version);
     assert.ok(manifest.actions.length);
     for (const action of manifest.actions) assert.ok(source.includes(`case '${action.event}'`), action.event);
+    // The PDF name preference, as ServiceM8's manifest reference has them; the function's default is the same.
+    const [pdfName] = manifest.preferences;
+    assert.equal(pdfName.key, 'pdf_name');
+    assert.ok([...pdfName.description].length <= 250, `${[...pdfName.description].length} characters`);
+    assert.ok(pdfName.default.length <= pdfName.maxLength);
+    assert.ok(source.includes(`const DEFAULT_NAME = '${pdfName.default}';`));
 });

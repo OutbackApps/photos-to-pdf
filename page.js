@@ -63,6 +63,9 @@ body.reordering, body.reordering * { cursor: grabbing !important; }
 @keyframes peek-in { from { opacity: 0; transform: scale(.96); } }
 .dev { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 4px; font-size: 10px; text-align: center; color: #fff; background: rgba(0, 0, 0, .55); }
 .dev.failed { background: var(--danger); }
+/* A photo exactly the same as one before it: tagged, top left. It's still used unless it's left out. */
+.dup { position: absolute; top: 4px; left: 4px; padding: 1px 6px; border-radius: 3px; background: #d9822b; color: #fff; font-size: 10px; font-weight: 600; line-height: 16px; }
+.dup[hidden] { display: none; }
 /* The picker fills the window, so "Left out" sits at the bottom, just above the footer, when there's room. */
 body:has(.groups) { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 body:has(.groups) #app, .groups { flex: 1; display: flex; flex-direction: column; }
@@ -74,16 +77,63 @@ body.dropping .groups { outline: 2px dashed var(--brand); outline-offset: 4px; b
 .per[hidden] { display: none; }
 .per label { font-weight: 600; }
 /* Inputs, as sdk.css draws them. */
-.per input { width: 64px; padding: .4em .5em; border: 1px solid var(--field-line); border-radius: 3px; font: inherit; color: var(--ink); background: var(--surface); }
-.per input:hover:not(:disabled) { border-color: #b6bbbf; }
-.per input:focus { border-color: #a5acb0; outline: none; box-shadow: 0 0 6px var(--field-line); }
+.per input, .pdf-name { width: 64px; padding: .4em .5em; border: 1px solid var(--field-line); border-radius: 3px; font: inherit; color: var(--ink); background: var(--surface); }
+.per input:hover:not(:disabled), .pdf-name:hover:not(:disabled) { border-color: #b6bbbf; }
+.per input:focus, .pdf-name:focus { border-color: #a5acb0; outline: none; box-shadow: 0 0 6px var(--field-line); }
 .per #over:not(:empty)::before { content: "·"; margin-right: 6px; color: var(--muted); }
 .per #pdfs:empty + #over::before { content: none; }
 .per #resplit { margin-left: auto; }
 .per #resplit[hidden] { display: none; }
 /* Each PDF is a panel, so it's clear which photos go together; "New PDF" and empty sections are dashed, like ServiceM8's empty lists. */
 .group { margin: 0 0 12px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
-.group h2 { font-size: 14px; margin: 0 0 8px; }
+.group h2 { font-size: 14px; margin: 0; white-space: nowrap; }
+/* A PDF's heading, then its name (Simple: every PDF's): beside it, or under it on a narrow screen. */
+.group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 8px; font-size: 13px; }
+/*
+ * A name box: its text is drawn coloured in a layer behind it, and the box's own is see-through (its
+ * caret and selection still show). Fields the job has are green, ones it doesn't red, [ ] blue.
+ */
+.name-field { position: relative; display: flex; flex: 1 1 220px; max-width: 520px; min-width: 0; }
+.name-field .pdf-name { position: relative; flex: 1; min-width: 0; padding-right: 30px; color: transparent; caret-color: var(--ink); background: transparent; }
+.name-field .pdf-name::selection { color: transparent; background: rgba(125, 200, 54, .35); }
+.name-colours { position: absolute; inset: 0; padding: .4em 30px .4em .5em; border: 1px solid transparent; border-radius: 3px; background: var(--surface); color: var(--ink); white-space: pre; overflow: hidden; pointer-events: none; }
+.name-field .pdf-name:disabled, .name-field:has(.pdf-name:disabled) .name-colours { opacity: .6; }
+.t-field { color: var(--brand-ink); background: rgba(125, 200, 54, .18); border-radius: 3px; }
+.t-bad { color: var(--danger); text-decoration: underline wavy; text-underline-offset: 3px; }
+.t-opt { color: #2f7bbf; }
+/* "?" at the end of a name box (room's left for it), and how names work, under it. */
+.name-help { position: absolute; top: 50%; right: 5px; width: 20px; height: 20px; padding: 0; transform: translateY(-50%); border: 1px solid var(--field-line); border-radius: 10px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; line-height: 18px; }
+.name-help:hover, .name-help[aria-expanded="true"] { border-color: var(--brand); color: var(--brand-ink); }
+/* Its text can be selected and copied (the rest of the page can't: photos are dragged there). */
+.help-box { position: fixed; z-index: 30; padding: 10px 14px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, .18); font-size: 13px; line-height: 1.5; user-select: text; -webkit-user-select: text; }
+.help-box[hidden] { display: none; }
+.help-box p { margin: 0 0 8px; }
+.help-box p.muted { font-size: 12px; }
+/* Each example: the template, what it comes out as on this job, and Use. */
+.help-examples { list-style: none; margin: 0 0 8px; padding: 0; }
+.help-examples li { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.help-examples li:last-child { border-bottom: 1px solid var(--line); }
+.help-template { min-width: 0; overflow-wrap: anywhere; }
+.help-result { grid-row: 2; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.help-examples .link { grid-row: 1 / 3; grid-column: 2; }
+/* The job's fields, offered after a "{" in a name box. */
+.suggest { position: fixed; z-index: 30; margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, .18); font-size: 13px; }
+.suggest[hidden] { display: none; }
+.suggest li { display: flex; align-items: baseline; gap: 8px; padding: 5px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.suggest li.on { background: rgba(125, 200, 54, .18); }
+.suggest li.s-head { padding: 3px 8px 5px; color: var(--muted); font-size: 12px; cursor: default; }
+/* A [ ] section: tinted as a whole, so what goes with its field is plain. */
+.t-section { background: rgba(47, 123, 191, .18); border-radius: 3px; }
+/* After what a name comes out as: why a [ ] section was left out (a field in it is empty on this job). */
+.left-out-why { color: var(--muted); }
+.suggest .s-label { font-weight: 600; }
+.suggest .s-key { color: var(--brand-ink); }
+.suggest .s-value { flex: 1; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+/* Empty, it shows the name from the template: plainly not typed in. */
+.group-head .pdf-name::placeholder { color: var(--muted); font-style: italic; opacity: 1; }
+.group-head .pdf-saved { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.group-head .pdf-saved:empty { display: none; }
+.group-head .pdf-saved b { font-weight: 600; color: var(--ink); }
 .group h2 .count { font-weight: normal; }
 .group .ph:not(:has(img)) { background: var(--surface); }
 .group.out .ph:not(:has(img)) { background: var(--field); }
@@ -135,8 +185,9 @@ ${script ? `<script>${script}</script>` : ''}
 }
 
 /*
- * Reading a JPEG's header, in the browser. They use nothing but what they're given, so they're sent
- * with the page's script on their own (pageScript), not inside photosToPdfPage.
+ * Reading a JPEG's header, and filling in the PDF name's template, in the browser. They use nothing
+ * but what they're given, so they're sent with the page's script on their own (pageScript), not
+ * inside photosToPdfPage.
  */
 
 /** A JPEG's pixel size, colours and EXIF orientation, if PDF readers can show it as it is (otherwise null). */
@@ -204,6 +255,62 @@ function exifOrientation(segment) {
         // Cut short or malformed: read as no rotation.
     }
     return 0;
+}
+
+/**
+ * Fills in a name template the way ServiceM8's email templates do: {job.purchase_order_number}
+ * is that field of the job (`values.job`). Text in [ ] is left out when a field in it is empty, so
+ * "Photos[ - PO {job.purchase_order_number}]" is just "Photos" for a job without one. A field it
+ * doesn't know stays as it's written, so a mistake shows in the preview.
+ */
+function fillTemplate(template, values) {
+    const kept = templateParts(template, values).filter((part) => !part.dropped);
+    return kept.map((part) => part.text).join('').replaceAll(/\s+/g, ' ').trim();
+}
+
+/** The whole field ("{job.…}") a name box's caret is in, if it's in one (just after its "{" to just before its "}"). */
+function fieldAt(input) {
+    const caret = input.selectionStart;
+    if (input.selectionEnd !== caret) return null;
+    for (const m of input.value.matchAll(/\{(\w+)\.(\w+)\}/g)) {
+        if (m.index < caret && caret < m.index + m[0].length) return { start: m.index, end: m.index + m[0].length, key: m[2].toLowerCase() };
+    }
+    return null;
+}
+
+/**
+ * A name template filled in (as fillTemplate), in parts: { text }, and for a [ ] section left out,
+ * { text, dropped: true, empty } (the text it would have had, and its fields that are empty), so
+ * the preview can show what was left out and why.
+ */
+function templateParts(template, values) {
+    const field = (whole, object, key) => {
+        const fields = values[object.toLowerCase()];
+        const name = key.toLowerCase();
+        if (!fields || !Object.hasOwn(fields, name)) return { text: whole, empty: false, name };
+        const text = String(fields[name] ?? '').trim();
+        return { text, empty: !text, name };
+    };
+    const PLACEHOLDER = /\{(\w+)\.(\w+)\}/g;
+    const source = String(template ?? '');
+    const parts = [];
+    let at = 0;
+    for (const m of source.matchAll(/\[([^[\]]*)\]|\{(\w+)\.(\w+)\}/g)) {
+        if (m.index > at) parts.push({ text: source.slice(at, m.index) });
+        at = m.index + m[0].length;
+        const [whole, section, object, key] = m;
+        if (section === undefined) {
+            parts.push({ text: field(whole, object, key).text });
+            continue;
+        }
+        const found = Array.from(section.matchAll(PLACEHOLDER), (f) => field(f[0], f[1], f[2]));
+        let k = 0;
+        const text = section.replaceAll(PLACEHOLDER, () => found[k++].text);
+        const empty = found.filter((f) => f.empty).map((f) => f.name);
+        parts.push(empty.length ? { text, dropped: true, empty } : { text });
+    }
+    if (at < source.length) parts.push({ text: source.slice(at) });
+    return parts;
 }
 
 /*
@@ -334,6 +441,332 @@ function photosToPdfPage(boot) {
         let state = { step: 'pick' };
         let error = null;
 
+        /**
+         * The PDFs' name: the template set in ServiceM8's settings (Preferences → Add-ons), which can be
+         * changed here for this save; " (1 of 3)" is added when there are several.
+         */
+        let nameTemplate = boot.nameTemplate;
+        /** A template filled in with the job's fields, without anything a file name can't have ('' if it comes out empty). */
+        const fileName = (template) => fillTemplate(template, { job: job.fields }).replaceAll(/[\\/:*?"<>|\p{Cc}]+/gu, '_').slice(0, 120).trim();
+        /** The name's start, before " (1 of 3)": a job number if the template comes out empty. */
+        const pdfBase = () => fileName(nameTemplate) || `Job #${job.fields.generated_job_id || job.uuid.slice(0, 8)} Photos`;
+        /** PDF `k` (from 0) of `of`: "Job #2 Photos (1 of 3)", or just "Job #2 Photos" if it's the only one. */
+        const pdfName = (base, k, of) => (of > 1 ? `${base} (${k + 1} of ${of})` : base);
+        /** PDF `k`'s name: its own, given in Detailed (a template too, with nothing added), or from the template. */
+        const nameOf = (k, of) => (!simple && groups[k]?.name && fileName(groups[k].name)) || pdfName(pdfBase(), k, of);
+        /**
+         * The name boxes: empty until a name's typed in, the name from the template (filled in for this
+         * job) their placeholder, and Reset to empty them again. Beside Simple's, the first PDF's name and
+         * how many more; beside a PDF's in Detailed, what its own name comes out as, once it has one.
+         */
+        function updateNames() {
+            const of = groups.length;
+            const reset = app.querySelector('#template-reset');
+            if (reset) reset.hidden = nameTemplate === boot.nameTemplate;
+            app.querySelectorAll('.pdf-name, .name-help, #template-reset, .pdf-reset').forEach((el) => {
+                el.disabled = busy();
+            });
+            app.querySelectorAll('.pdf-name').forEach((input) => {
+                const head = input.closest('.group-head');
+                const saved = head.querySelector('.pdf-saved');
+                paintTemplate(input);
+                if (input.id === 'template') {
+                    input.placeholder = fileName(boot.nameTemplate) || pdfBase();
+                    const more = of > 1 ? `, and ${of - 1} more` : '';
+                    saved.innerHTML = of ? savedAs(nameTemplate, 0, of, more) : '';
+                    return;
+                }
+                const gi = +input.dataset.g;
+                const own = groups[gi]?.name;
+                input.placeholder = pdfName(pdfBase(), gi, of);
+                head.querySelector('.pdf-reset').hidden = !own;
+                saved.innerHTML = own ? savedAs(own, gi, of, '', true) : '';
+            });
+        }
+
+        /**
+         * What PDF `k` of `of` is saved as with this template, in HTML: " (1 of 3)" added unless it's a
+         * PDF's own name, then `more`, then, if a [ ] section was left out, which empty field left it out.
+         */
+        function savedAs(template, k, of, more, own) {
+            const filled = fileName(template);
+            if (!filled) return `<b>${esc(own ? nameOf(k, of) : pdfName(pdfBase(), k, of))}.pdf</b>${more}`; // the fallback
+            const number = !own && of > 1 ? ` (${k + 1} of ${of})` : '';
+            const names = emptyFields(template).map((key) => FIELD_LABELS[key] || key);
+            const are = names.length > 1 ? 'are' : 'is';
+            const why = names.length ? ` <span class="left-out-why">(left out: ${esc(names.join(' and '))} ${are} empty)</span>` : '';
+            return `<b>${esc(filled + number)}.pdf</b>${more}${why}`;
+        }
+
+        /** The empty fields that leave a template's [ ] sections out on this job. */
+        function emptyFields(template) {
+            const keys = templateParts(template, { job: job.fields }).flatMap((part) => part.empty ?? []);
+            return [...new Set(keys)];
+        }
+
+        // ----- Name boxes: the template coloured in, and the job's fields offered after a "{" -----
+
+        /** Friendlier names for the job fields most used in a name, offered first (any of the job's fields can be used). */
+        const FIELD_LABELS = {
+            generated_job_id: 'Job number',
+            purchase_order_number: 'PO number',
+            job_address: 'Job address',
+            job_description: 'Job description',
+            status: 'Status',
+            date: 'Job date',
+            billing_address: 'Billing address',
+            work_done_description: 'Work done',
+            geo_street: 'Street',
+            geo_city: 'Suburb or city',
+            geo_state: 'State',
+            geo_postcode: 'Postcode',
+            quote_date: 'Quote date',
+            work_order_date: 'Work order date',
+            completion_date: 'Completion date',
+        };
+        /** The fields offered: those above first, then the rest of the job's, but not its ids. */
+        const fieldChoices = (() => {
+            const keys = Object.keys(job.fields).filter((k) => !/(^|_)uuid$/.test(k) && k !== 'active');
+            const first = Object.keys(FIELD_LABELS).filter((k) => keys.includes(k));
+            const rest = keys.filter((k) => !FIELD_LABELS[k]).sort((a, b) => a.localeCompare(b));
+            return [...first, ...rest].map((key) => ({ key, label: FIELD_LABELS[key] || '', value: job.fields[key] }));
+        })();
+
+        /**
+         * A name box's text, coloured, in the layer behind it (the box's own text is see-through): fields
+         * the job has, ones it doesn't (they stay as typed), and each [ ] section (left out when a field
+         * in it is empty), tinted as a whole so it's plain what goes with the field.
+         */
+        function paintTemplate(input) {
+            const layer = input.previousElementSibling;
+            layer.innerHTML = colourTemplate(input.value);
+            layer.scrollLeft = input.scrollLeft; // a long name scrolls in its box
+        }
+        /** A template as HTML, coloured as in the name boxes (see paintTemplate). */
+        function colourTemplate(template) {
+            const fields = (text) =>
+                text.replaceAll(/\{(\w+)\.(\w+)\}/g, (whole, object, key) => {
+                    const known = object.toLowerCase() === 'job' && Object.hasOwn(job.fields, key.toLowerCase());
+                    return `<span class="${known ? 't-field' : 't-bad'}">${whole}</span>`;
+                });
+            const bracket = (b) => `<span class="t-opt">${b}</span>`;
+            return esc(template).replaceAll(/\[([^[\]]*)\]|[^[]+|\[/g, (whole, section) =>
+                section === undefined ? fields(whole) : '<span class="t-section">' + bracket('[') + fields(section) + bracket(']') + '</span>',
+            );
+        }
+
+        // ----- "?" at the end of a name box: how names work, by example -----
+
+        /** Examples, each shown with what it comes out as on this job, to Use as they are or start from. */
+        const NAME_EXAMPLES = [
+            'Job #{job.generated_job_id}',
+            'Job #{job.generated_job_id} Photos[ - PO {job.purchase_order_number}]',
+            '{job.job_address} - Job #{job.generated_job_id}',
+        ];
+        const helpBox = document.createElement('div');
+        helpBox.className = 'help-box';
+        helpBox.hidden = true;
+        helpBox.setAttribute('role', 'dialog');
+        helpBox.setAttribute('aria-label', 'Naming the PDFs');
+        document.body.append(helpBox);
+        let helpFor = null; // the "?" it's open for
+
+        /** The help: a line on how it works, then the examples, with what each comes out as on this job. */
+        function helpHtml() {
+            const examples = NAME_EXAMPLES.map((template, k) => {
+                const result = fileName(template) || pdfBase();
+                return `<li><span class="help-template">${colourTemplate(template)}</span><span class="help-result">→ ${esc(result)}</span><button type="button" class="link" data-use="${k}">Use</button></li>`;
+            });
+            return [
+                '<p>Click in the box to add a job field, or type <b>{</b>. Text in <span class="t-opt">[ ]</span> is left out when a field in it is empty.</p>',
+                `<ul class="help-examples">${examples.join('')}</ul>`,
+                '<p class="muted">Several PDFs get “(1 of 3)” added. The default is set in ServiceM8: Settings → Preferences → Add-ons.</p>',
+            ].join('');
+        }
+
+        // An example's Use: it goes in the box the "?" is for, as if typed there.
+        helpBox.addEventListener('click', (e) => {
+            const use = e.target.closest('[data-use]');
+            if (!use || !helpFor) return;
+            const input = helpFor.parentElement.querySelector('.pdf-name');
+            input.value = NAME_EXAMPLES[+use.dataset.use];
+            hideHelp();
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            hideSuggest(); // it wasn't typed in: nothing to offer
+        });
+
+        /** Opens the help under its "?" (right-aligned to it), or closes it if it's open for that one. */
+        function toggleHelp(button) {
+            if (helpFor === button) return hideHelp();
+            hideHelp();
+            hideSuggest();
+            helpFor = button;
+            button.setAttribute('aria-expanded', 'true');
+            helpBox.innerHTML = helpHtml();
+            helpBox.hidden = false;
+            const r = button.getBoundingClientRect();
+            const width = Math.min(380, innerWidth - 16);
+            const h = helpBox.offsetHeight;
+            const top = r.bottom + 6 + h <= innerHeight ? r.bottom + 6 : Math.max(8, r.top - 6 - h);
+            Object.assign(helpBox.style, { width: `${width}px`, left: `${Math.max(8, Math.min(r.right - width, innerWidth - width - 8))}px`, top: `${top}px` });
+        }
+        function hideHelp() {
+            helpFor?.setAttribute('aria-expanded', 'false');
+            helpFor = null;
+            helpBox.hidden = true;
+        }
+        // Closed by a press anywhere else, Esc, or scrolling or resizing (it'd be left behind).
+        addEventListener('resize', () => helpFor && hideHelp());
+        document.addEventListener('pointerdown', (e) => {
+            if (helpFor && !helpBox.contains(e.target) && e.target !== helpFor) hideHelp();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (helpFor && e.key === 'Escape') hideHelp();
+        });
+        addEventListener('scroll', () => helpFor && hideHelp(), { passive: true });
+
+        const suggestBox = document.createElement('ul');
+        suggestBox.className = 'suggest';
+        suggestBox.hidden = true;
+        suggestBox.setAttribute('role', 'listbox');
+        document.body.append(suggestBox);
+        /**
+         * The fields being offered: for which box, how (`mode`, below), what a pick replaces (`start` to
+         * `end`), the ones offered, and the one picked out.
+         *   typed:   after a "{" typed, those matching what's typed since; a pick replaces it (and the rest of a field)
+         *   change:  the caret on a field already there (clicked, or moved onto it): all of them; a pick replaces that field
+         *   add:     the box just clicked into: all of them; a pick goes where the caret is (over any text selected)
+         */
+        let suggesting = null;
+        /** The name box clicked (or tabbed) into, until something's typed in it: all the fields are offered, so they're found. */
+        let browsing = null;
+
+        /**
+         * What to offer in a name box, as `suggesting` (without `active`, and `now`: the one to pick out
+         * to start with), or null for nothing. `typing`: asked as the box is typed in.
+         */
+        function offerFor(input, typing) {
+            if (document.activeElement !== input) return null;
+            const caret = input.selectionStart;
+            const on = !typing && fieldAt(input);
+            if (on) {
+                // Changing a field: every field, with it picked out.
+                const now = Math.max(0, fieldChoices.findIndex((f) => f.key === on.key));
+                return { input, mode: 'change', start: on.start, end: on.end, items: fieldChoices, now };
+            }
+            const typed = input.selectionEnd === caret && input.value.slice(0, caret).match(/\{([\w.]*)$/);
+            if (!typed) return browsing === input ? { input, mode: 'add', start: null, end: null, items: fieldChoices, now: 0 } : null;
+            let q = typed[1].toLowerCase();
+            if (q.includes('.')) {
+                if (!q.startsWith('job.')) return null; // only the job's fields
+                q = q.slice(4);
+            }
+            const items = fieldChoices.filter((f) => f.key.includes(q) || f.label.toLowerCase().includes(q));
+            return items.length ? { input, mode: 'typed', start: caret - typed[0].length, end: null, items, now: 0 } : null;
+        }
+
+        /**
+         * The job's fields, under a name box: after a "{" typed, those matching what's typed since (a label
+         * or a field name); otherwise, with the caret on a field, all of them to change it to; or, the box
+         * just clicked into, all of them to add. `typing`: called as the box's typed in.
+         */
+        function suggest(input, typing) {
+            const offer = offerFor(input, typing);
+            if (!offer) return hideSuggest();
+            const { now, ...next } = offer;
+            const { mode, items } = next;
+            const same = suggesting?.input === input && suggesting.mode === mode && suggesting.start === next.start && suggesting.items.length === items.length;
+            // The same as already shown (e.g. the caret moved within what's typed): left as it is, with what's picked out.
+            if (same && suggesting.items.every((f, k) => f === items[k])) return placeSuggest();
+            suggesting = { ...next, active: same ? suggesting.active : now };
+            const head = { add: 'Add a job field to the name', change: 'Change this field to' }[mode];
+            const options = items.map((f, k) => {
+                const label = f.label ? `<span class="s-label">${esc(f.label)}</span>` : '';
+                const value = f.value ? esc(f.value) : '<i>empty</i>';
+                return `<li role="option" data-k="${k}">${label}<span class="s-key">{job.${esc(f.key)}}</span><span class="s-value">${value}</span></li>`;
+            });
+            suggestBox.innerHTML = (head ? `<li class="s-head">${head}</li>` : '') + options.join('');
+            suggestBox.hidden = false;
+            placeSuggest();
+            pickSuggestion(suggesting.active);
+        }
+
+        /** Under its box, or over it if there's no room below (above the footer). */
+        function placeSuggest() {
+            const r = suggesting.input.getBoundingClientRect();
+            const width = Math.min(Math.max(r.width, 320), innerWidth - 16);
+            const bottom = innerHeight - (app.querySelector('.foot')?.offsetHeight ?? 0);
+            const h = suggestBox.offsetHeight;
+            const top = r.bottom + 2 + h <= bottom ? r.bottom + 2 : Math.max(8, r.top - 2 - h);
+            Object.assign(suggestBox.style, { width: `${width}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - width - 8))}px`, top: `${top}px` });
+        }
+
+        function pickSuggestion(k) {
+            suggesting.active = (k + suggesting.items.length) % suggesting.items.length;
+            const options = suggestBox.querySelectorAll('[data-k]');
+            options.forEach((li, i) => li.classList.toggle('on', i === suggesting.active));
+            options[suggesting.active].scrollIntoView({ block: 'nearest' });
+        }
+
+        /** The field picked, in place of what it replaces (see `suggesting`). */
+        function chooseSuggestion(k) {
+            const { input, items, mode } = suggesting;
+            const text = `{job.${items[k].key}}`;
+            const start = mode === 'add' ? input.selectionStart : suggesting.start;
+            let after = input.value.slice(input.selectionEnd); // add
+            if (mode === 'change') after = input.value.slice(suggesting.end);
+            else if (mode === 'typed') after = after.replace(/^[\w.]*\}/, '');
+            input.value = input.value.slice(0, start) + text + after;
+            input.setSelectionRange(start + text.length, start + text.length);
+            hideSuggest();
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        function hideSuggest() {
+            browsing = null;
+            suggesting = null;
+            suggestBox.hidden = true;
+        }
+
+        suggestBox.addEventListener('mousedown', (e) => e.preventDefault()); // the box keeps the focus
+        suggestBox.addEventListener('click', (e) => {
+            const li = e.target.closest('[data-k]'); // not the heading or the help under them
+            if (li && suggesting) chooseSuggestion(+li.dataset.k);
+        });
+        addEventListener('scroll', () => suggesting && placeSuggest(), { passive: true });
+
+        /** The name boxes in `wrap`: coloured as they're typed in, with fields offered when clicked into and after a "{". */
+        function nameBoxes(wrap) {
+            const isBox = (el) => el?.matches?.('.pdf-name');
+            // Clicked or tabbed into: every field is offered, so it's plain they can be used.
+            for (const type of ['focusin', 'click']) {
+                wrap.addEventListener(type, (e) => {
+                    if (!isBox(e.target) || e.target.disabled) return;
+                    browsing = e.target;
+                    suggest(e.target);
+                });
+            }
+            // The caret moved by a key (clicks are above; typing is the box's input event) can start, end or change
+            // what's offered. Not the "select" event: setting the caret from code fires it later, and it'd undo an Esc.
+            const MOVES = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
+            wrap.addEventListener('keyup', (e) => {
+                if (!isBox(e.target) || !MOVES.has(e.key)) return;
+                paintTemplate(e.target); // the box may have scrolled
+                suggest(e.target);
+            });
+            wrap.addEventListener('scroll', (e) => isBox(e.target) && paintTemplate(e.target), true);
+            wrap.addEventListener('focusout', (e) => isBox(e.target) && hideSuggest());
+            wrap.addEventListener('keydown', (e) => {
+                if (!suggesting || e.target !== suggesting.input) return;
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') pickSuggestion(suggesting.active + (e.key === 'ArrowDown' ? 1 : -1));
+                // Tab picks one only after a "{": otherwise it moves on, as it would.
+                else if (e.key === 'Enter' || (e.key === 'Tab' && suggesting.mode === 'typed')) chooseSuggestion(suggesting.active);
+                else if (e.key === 'Escape') hideSuggest();
+                else return;
+                e.preventDefault();
+            });
+        }
+
         /** A photo's bytes, by the quickest way that works: the ones that don't are skipped from then on. */
         async function fetchPhoto(p) {
             return (directFiles && (await fromApi(p))) || (fromStorage && (await fromStorageLink(p))) || throughFunction(p);
@@ -423,6 +856,7 @@ function photosToPdfPage(boot) {
                 const p = { uuid: `device-${++deviceCount}`, name: file.name || `Photo ${deviceCount}.jpg`, file, diary: 'saving' };
                 photos.push(p);
                 void addToDiary(p); // it records its own failures on the tile
+                checkDuplicate(p); // e.g. a photo that's on the job already
                 return p.uuid;
             });
             putBack(uuids);
@@ -454,7 +888,6 @@ function photosToPdfPage(boot) {
             return photos.filter((p) => p.diary === 'failed').map((p) => p.name);
         }
 
-        const caption = (p) => [p.name, p.timestamp?.slice(0, 16)].filter(Boolean).join('\n');
         const busy = () => ['diary', 'making', 'saving'].includes(state.step);
         const byUuid = (uuid) => photos.find((p) => p.uuid === uuid);
 
@@ -470,6 +903,11 @@ function photosToPdfPage(boot) {
             return out;
         };
         let groups = split(photos.map((p) => p.uuid));
+        /**
+         * A PDF given its own name in Detailed has it as the list's `name`. Lists made afresh (dragging,
+         * splitting) take the name of the PDF that was in their place, so PDF 2 is still called what it was.
+         */
+        const regroup = (lists) => lists.map((g, k) => Object.assign(g, { name: groups[k]?.name }));
         /** Whether the PDFs are just the photos split evenly (nothing's been dragged about). */
         const even = () => groups.every((g, k) => (k < groups.length - 1 ? g.length === perPdf : g.length <= perPdf));
         const leftOut = () => {
@@ -507,7 +945,7 @@ function photosToPdfPage(boot) {
             const pdfs = groups.length;
             if (out) uuids.forEach(leaveOut);
             else putBack(uuids);
-            if (simple) groups = split(groups.flat()); // still even PDFs, in its one list
+            if (simple) groups = regroup(split(groups.flat())); // still even PDFs, in its one list
             else if (groups.length !== pdfs) return drawGroups(); // redrawn, to number them
             const li = (uuid) => wrap.querySelector(`li[data-u="${CSS.escape(uuid)}"]`);
             const lists = wrap.querySelectorAll('.pdf:not(.new) .ogrid');
@@ -544,7 +982,7 @@ function photosToPdfPage(boot) {
         /** Switching to Simple puts the photos back into even PDFs, in the order they're in. */
         function setView(toSimple) {
             simple = toSimple;
-            if (simple) groups = split(groups.flat());
+            if (simple) groups = regroup(split(groups.flat()));
             try {
                 localStorage.setItem(VIEW_KEY, simple ? 'simple' : 'detailed');
             } catch {
@@ -597,7 +1035,7 @@ function photosToPdfPage(boot) {
         function renderPick() {
             const hint = photos.length ? '' : 'No photos on this job yet. Add some from this device.';
             const checked = enlargeOn ? ' checked' : '';
-            const enlargeToggle = canEnlarge ? `<label class="enlarge" title="Point at a photo to see it bigger"><input type="checkbox" id="enlarge"${checked}> Enlarge on hover</label>` : '';
+            const enlargeToggle = canEnlarge ? `<label class="enlarge"><input type="checkbox" id="enlarge"${checked}> Enlarge on hover</label>` : '';
             const on = (isOn) => (isOn ? ' on' : '');
             // With a mouse (as for "Enlarge on hover") or a finger.
             const how = canEnlarge
@@ -606,22 +1044,22 @@ function photosToPdfPage(boot) {
             const selectionBar = `<div class="selection-bar">
             <span class="muted" id="sel-how">${how}</span>
             <span id="sel-count"></span>
-            <button class="link" id="sel-out" title="Delete">Leave out</button>
+            <button class="link" id="sel-out">Leave out</button>
             <button class="link" id="sel-back">Put back</button>
-            <button class="link" id="sel-clear" title="Esc">Clear</button>
+            <button class="link" id="sel-clear">Clear</button>
         </div>`;
             app.innerHTML = `
         <div class="bar">
         <span class="view" role="group" aria-label="View">
-            <button class="link${on(simple)}" id="view-simple" aria-pressed="${simple}" title="The photos in page order: drag to reorder, or select and leave out. Saved as PDFs of up to ${perPdf} each.">Simple</button>
-            <button class="link${on(!simple)}" id="view-detailed" aria-pressed="${!simple}" title="Choose which photos go in each PDF, and how many per PDF">Detailed</button>
+            <button class="link${on(simple)}" id="view-simple" aria-pressed="${simple}">Simple</button>
+            <button class="link${on(!simple)}" id="view-detailed" aria-pressed="${!simple}">Detailed</button>
         </span>
         <span class="muted">${hint}</span>
         <span class="actions">
             ${enlargeToggle}
             <button class="link" id="none">Leave all out</button>
             <button class="link" id="every">Put all back</button>
-            <button class="link" id="add-photos" title="Add photos from this device. They're added to the job diary too.">+ Add photos</button>
+            <button class="link" id="add-photos">+ Add photos</button>
             <input type="file" id="add" accept="image/*" multiple hidden>
         </span>
         </div>
@@ -632,7 +1070,7 @@ function photosToPdfPage(boot) {
             <label for="per">Photos per PDF</label>
             <input type="number" id="per" min="1" max="${MAX_PER_PDF}" step="1" inputmode="numeric" value="${perPdf}">
             <span class="muted" id="pdfs"></span><span class="danger" id="over"></span>
-            <button id="resplit" title="Puts the photos in PDFs of this many each, keeping their order"></button>
+            <button id="resplit"></button>
         </div>
         <p class="danger" id="error" hidden></p>
         <button class="btn" id="save"></button>
@@ -662,7 +1100,7 @@ function photosToPdfPage(boot) {
                 per.value = perPdf;
             };
             app.querySelector('#resplit').onclick = () => {
-                groups = split(groups.flat());
+                groups = regroup(split(groups.flat()));
                 drawGroups();
             };
             app.querySelector('#save').onclick = save;
@@ -693,22 +1131,67 @@ function photosToPdfPage(boot) {
             const old = app.querySelector('.groups');
             if (old) {
                 hidePeek(); // its tile is about to go
-                const tile = (p) => `<li data-u="${esc(p.uuid)}"><button class="ph" data-i="${photos.indexOf(p)}" title="${esc(caption(p))}">
-                <span class="ph-msg">Loading…</span>${p.file ? '<span class="dev"></span>' : ''}
+                hideSuggest(); // and its name box
+                hideHelp();
+                const tile = (p) => `<li data-u="${esc(p.uuid)}"><button class="ph" data-i="${photos.indexOf(p)}" aria-label="${esc(p.name)}">
+                <span class="ph-msg">Loading…</span><span class="dup" hidden>Duplicate</span>${p.file ? '<span class="dev"></span>' : ''}
             </button></li>`;
+                // Beside a PDF's heading, its name. Simple: the template, for every PDF (with Reset, back to the
+                // one in ServiceM8's settings). Detailed: each PDF's own (empty: the name from the template).
+                // Each box is in a .name-field, with its text coloured in the layer behind it (paintTemplate).
+                // Nothing to fill in. Browsers' own autofill ignores autocomplete="off" in a box they take for a person's
+                // name (an id or label like "name"), but not a value it doesn't know; and password managers have their
+                // own attributes (LastPass, 1Password, Bitwarden, Dashlane). Then "?", for how names work.
+                const notLogin = 'autocomplete="photos-pdf-name" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other"';
+                const help = '<button type="button" class="name-help" aria-label="How names work" aria-expanded="false">?</button>';
+                const box = (attrs) =>
+                    `<span class="name-field"><span class="name-colours" aria-hidden="true"></span><input type="text" class="pdf-name" maxlength="200" spellcheck="false" ${notLogin} ${attrs}>${help}</span>`;
+                // Empty until a name's typed in, with the name from the default (filled in) as its placeholder; Reset empties it.
+                const nameBox = (gi) => {
+                    if (gi === 'all') {
+                        const typed = nameTemplate === boot.nameTemplate ? '' : nameTemplate;
+                        return box(`id="template" value="${esc(typed)}" aria-label="What the PDFs are called"`) + '<button class="link" id="template-reset">Reset</button>';
+                    }
+                    if (gi === undefined) return '';
+                    const reset = `<button class="link pdf-reset" data-g="${gi}" hidden>Reset</button>`;
+                    return box(`data-g="${gi}" value="${esc(groups[gi].name ?? '')}" aria-label="What PDF ${gi + 1} is called"`) + reset;
+                };
                 // An empty list mustn't hold even whitespace, or it isn't :empty (its "Drag a photo here").
-                const section = (kind, title, list) => `<section class="group ${kind}">
-            <h2>${title} <span class="count muted"></span></h2>
+                const section = (kind, title, list, gi) => `<section class="group ${kind}">
+            <div class="group-head"><h2>${title} <span class="count muted"></span></h2>${nameBox(gi)}<span class="pdf-saved muted"></span></div>
             <ul class="ogrid">${list.map(tile).join('')}</ul>
         </section>`;
                 const wrap = document.createElement('div');
                 wrap.className = 'groups';
                 // Simple: the photos in one list, the PDFs split up when saved.
                 const pdfs = simple
-                    ? [section('pdf', 'Photos', groups.flat().map(byUuid))]
-                    : [...groups.map((g, gi) => section('pdf', `PDF ${gi + 1}`, g.map(byUuid))), section('pdf new', 'New PDF', [])];
+                    ? [section('pdf', 'Photos', groups.flat().map(byUuid), 'all')]
+                    : [...groups.map((g, gi) => section('pdf', `PDF ${gi + 1}`, g.map(byUuid), gi)), section('pdf new', 'New PDF', [])];
                 wrap.innerHTML = [...pdfs, section('out', 'Left out', leftOut())].join('');
                 old.replaceWith(wrap);
+                wrap.addEventListener('input', (e) => {
+                    // Simple's: every PDF's name for this save (cleared: the default again).
+                    if (e.target.id === 'template') nameTemplate = e.target.value.trim() ? e.target.value : boot.nameTemplate;
+                    else if (e.target.matches('.pdf-name')) {
+                        // Its own name, unless it's the template (or cleared).
+                        const typed = e.target.value.trim();
+                        groups[+e.target.dataset.g].name = typed && typed !== nameTemplate.trim() ? typed : undefined;
+                    } else return;
+                    update();
+                    browsing = null; // typing: just the fields after a "{" from now on
+                    suggest(e.target, true);
+                });
+                nameBoxes(wrap);
+                wrap.addEventListener('click', (e) => {
+                    const help = e.target.closest('.name-help');
+                    if (help) return toggleHelp(help);
+                    const reset = e.target.closest('#template-reset, .pdf-reset');
+                    if (!reset) return;
+                    if (reset.id === 'template-reset') nameTemplate = boot.nameTemplate;
+                    else groups[+reset.dataset.g].name = undefined;
+                    reset.closest('.group-head').querySelector('.pdf-name').value = ''; // the placeholder (the default) again
+                    update();
+                });
                 arrangeable(wrap);
                 wrap.querySelectorAll('.ph').forEach((el) => thumb(el, photos[+el.dataset.i]));
             }
@@ -729,15 +1212,18 @@ function photosToPdfPage(boot) {
             app.querySelectorAll('.ph').forEach((el) => {
                 el.disabled = busy();
                 el.classList.toggle('sel', selected.has(el.parentElement.dataset.u));
+                const p = photos[+el.dataset.i];
+                el.querySelector('.dup').hidden = !p.duplicate;
+                el.setAttribute('aria-label', p.duplicate ? `${p.name} (duplicate)` : p.name);
                 const dev = el.querySelector('.dev');
                 if (dev) {
-                    const p = photos[+el.dataset.i];
                     dev.textContent = DIARY_LABEL[p.diary];
                     dev.className = `dev ${p.diary}`;
                 }
             });
             for (const id of ['#view-simple', '#view-detailed', '#add-photos', '#none', '#every', '#per', '#resplit']) app.querySelector(id).disabled = busy();
             updateSelectionBar();
+            updateNames();
             const resplit = app.querySelector('#resplit');
             resplit.hidden = even();
             resplit.textContent = `Split into PDFs of ${perPdf}`;
@@ -916,7 +1402,8 @@ function photosToPdfPage(boot) {
 
             wrap.addEventListener('pointerdown', (e) => {
                 // One at a time: a second finger mustn't strand the first one's ghost.
-                if (e.button > 0 || drag || box || busy()) return;
+                // A name box (or its Reset) isn't a drag, or a box to select photos.
+                if (e.button > 0 || drag || box || busy() || e.target.closest('input, button:not(.ph)')) return;
                 pointer = e.pointerType;
                 const li = e.target.closest('li');
                 if (!li) {
@@ -1128,9 +1615,9 @@ function photosToPdfPage(boot) {
                 });
                 const pdfLists = Array.from(wrap.querySelectorAll('.pdf .ogrid'), uuidsIn);
                 if (simple) {
-                    groups = split(pdfLists[0]); // its one list, in even PDFs
+                    groups = regroup(split(pdfLists[0])); // its one list, in even PDFs
                 } else {
-                    groups = pdfLists.filter((g) => g.length);
+                    groups = regroup(pdfLists).filter((g) => g.length);
                     // A PDF emptied, or "New PDF" used: redrawn once the drag's click has gone by, to number
                     // the PDFs and for a fresh "New PDF". Otherwise the photo's already where it goes.
                     if (groups.length !== pdfLists.length - 1 || pdfLists.at(-1).length) return setTimeout(drawGroups);
@@ -1181,7 +1668,7 @@ function photosToPdfPage(boot) {
                     const now = app.querySelector(`.ph[data-i="${photos.indexOf(p)}"]`);
                     const msg = now?.querySelector('.ph-msg');
                     if (msg) msg.textContent = "Couldn't load";
-                    if (now) now.title = `${caption(p)}\n${errText(err)}`; // why, on hover
+                    console.warn(`Photo ${p.name} couldn't load:`, errText(err)); // for whoever looks
                 },
             );
         }
@@ -1335,9 +1822,7 @@ function photosToPdfPage(boot) {
             error = null;
             hidePeek();
             const list = groups.map((g) => g.map(byUuid));
-            // "Job #2 Photos - PO WA123": the job, then its PO number (ServiceM8's label for it) if it has one.
-            const po = job.poNumber ? ` - PO ${job.poNumber}` : '';
-            const base = `Job #${job.number || job.uuid.slice(0, 8)} Photos${po}`.replaceAll(/[\\/:*?"<>|]+/g, '_');
+            const names = list.map((_, k) => nameOf(k, list.length));
             // Straight to ServiceM8, photos go in as PDF_PHOTO. Through the function, each PDF has to fit its payload limit.
             const maxBytes = direct ? Infinity : RELAY_MAX;
             const pdfs = [];
@@ -1347,7 +1832,7 @@ function photosToPdfPage(boot) {
             async function next() {
                 if (gi >= list.length) return;
                 const before = savedBefore.get(list[gi].map((p) => p.uuid).join());
-                const saved = before?.complete ? before : await savePdf(list, gi, base, maxBytes, before);
+                const saved = before?.complete ? before : await savePdf(list, gi, names[gi], maxBytes, before);
                 failed.push(...saved.failed);
                 if (saved.pages.length) pdfs.push(saved); // otherwise none of its photos could be read
                 gi++;
@@ -1373,8 +1858,8 @@ function photosToPdfPage(boot) {
             }
         }
 
-        /** Makes PDF number `gi` of `list` and adds it to the job diary (in parts, if it's too big for ServiceM8 in one). */
-        async function savePdf(list, gi, base, maxBytes, partWay) {
+        /** Makes PDF number `gi` of `list`, called `name`, and adds it to the job diary (in parts, if it's too big for ServiceM8 in one). */
+        async function savePdf(list, gi, name, maxBytes, partWay) {
             const photosIn = list[gi];
             const saved = partWay || { names: [], done: 0, pages: [], failed: [], shrunk: [], complete: false };
             savedBefore.set(photosIn.map((p) => p.uuid).join(), saved);
@@ -1384,7 +1869,6 @@ function photosToPdfPage(boot) {
             };
             progress(0);
             const pdf = await photosPdf(photosIn, maxBytes, progress);
-            const name = list.length > 1 ? `${base} (${gi + 1} of ${list.length})` : base;
             Object.assign(saved, { pages: pdf.pages, failed: pdf.failed });
             if (pdf.pages.length) {
                 state = { step: 'saving', pdf: gi, of: list.length };
@@ -1716,8 +2200,37 @@ function photosToPdfPage(boot) {
             return new Blob(parts, { type: 'application/pdf' });
         }
 
+        // ----- Duplicates: a photo exactly the same (byte for byte) as one before it is tagged "Duplicate" -----
+
+        /** Each photo's SHA-256 (as a string) -> the photos with it, so far. */
+        const seen = new Map();
+
+        /**
+         * Tags the photo, as soon as it's loaded, if it's a copy of another: of those that are the same,
+         * the first in the job is the original and the rest are tagged. That doesn't wait for photos still
+         * loading: whichever comes first, the later of two the same is a copy (an earlier one loading later
+         * only makes the one that was first a copy too). Nothing moves: it's only a tag.
+         */
+        function checkDuplicate(p) {
+            if (!crypto.subtle) return; // not in this window (it isn't https): no tags
+            photoBlob(p)
+                .then(async (blob) => {
+                    const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+                    const hash = String.fromCodePoint(...new Uint8Array(digest));
+                    const same = seen.get(hash) ?? [];
+                    same.push(p);
+                    seen.set(hash, same);
+                    if (same.length < 2) return;
+                    const first = same.reduce((a, b) => (photos.indexOf(a) < photos.indexOf(b) ? a : b));
+                    for (const q of same) q.duplicate = q !== first;
+                    update();
+                })
+                .catch(() => { }); // couldn't be read: not checked (its tile says so)
+        }
 
         render();
+        // After the tiles in view have asked for their photos, so they load first.
+        setTimeout(() => photos.forEach(checkDuplicate), 300);
     }
 
     void photosToPdf();
@@ -1725,8 +2238,8 @@ function photosToPdfPage(boot) {
 
 /** The page's script: photosToPdfPage and the helpers it uses, in a scope of their own, started with the page's data. */
 function pageScript() {
-    const code = [jpegInfo, jpegHeader, isFrame, frame, exifOrientation, photosToPdfPage].map(String).join('\n\n');
+    const code = [jpegInfo, jpegHeader, isFrame, frame, exifOrientation, fillTemplate, templateParts, fieldAt, photosToPdfPage].map(String).join('\n\n');
     return `(() => {\n${code}\n\nphotosToPdfPage(JSON.parse(document.getElementById('app').dataset.boot));\n})();`;
 }
 
-module.exports = { shell, pageScript };
+module.exports = { shell, pageScript, fillTemplate, templateParts };

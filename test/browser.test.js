@@ -59,7 +59,7 @@ function fakeServiceM8(photos) {
     const fake = { posts: [], ranges: [] };
     fake.fetch = async (url, init = {}) => {
         url = String(url);
-        if (url.includes('/job/')) return Response.json({ generated_job_id: '1042', purchase_order_number: '77' });
+        if (url.includes('/job/')) return Response.json({ generated_job_id: '1042', purchase_order_number: '77', job_address: '1 Main St', job_description: '' });
         if (url.endsWith('/attachment.json') && init.method === 'POST') {
             const file = init.body.get('file');
             fake.posts.push({ name: init.body.get('attachment_name'), bytes: Buffer.from(await file.arrayBuffer()) });
@@ -88,7 +88,7 @@ function fakeServiceM8(photos) {
 }
 
 /** In the page: ServiceM8's API from the browser (or, not `direct`, refused as CORS would). */
-function pageApi(direct, files, slowPhotos, limit, failOnce) {
+function pageApi(direct, files, slowPhotos, limit, failOnce, slowFile) {
     window.__posts = [];
     window.__closed = false;
     const real = window.fetch;
@@ -99,6 +99,7 @@ function pageApi(direct, files, slowPhotos, limit, failOnce) {
         if (!direct) throw new TypeError('Failed to fetch');
         if (url.includes('/job/')) return new Response('{}');
         const file = url.match(/attachment\/([0-9a-f-]+)\.file/);
+        if (file && file[1] === slowFile) await new Promise((r) => setTimeout(r, 1500)); // this one's slow to load
         if (file) return new Response(bytes(files[file[1]]));
         if (url.endsWith('/attachment.json') && init.method === 'POST') {
             const name = init.body.get('attachment_name');
@@ -190,7 +191,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
     }
 
     /** The popup for a job with these photos, as ServiceM8 opens it. */
-    async function open(photos, { direct = true, slowPhotos = false, storageLetsBrowser = false, limit = 0, failOnce = '', width = 900, view } = {}) {
+    async function open(photos, { direct = true, slowPhotos = false, storageLetsBrowser = false, limit = 0, failOnce = '', slowFile = '', width = 900, view } = {}) {
         const fake = fakeServiceM8(photos);
         globalThis.fetch = (url, init) => (/servicem8\.com|storage\.example/.test(String(url)) ? fake.fetch(url, init) : realFetch(url, init));
         const context = await browser.createBrowserContext(); // its own storage: "photos per PDF" starts at the default
@@ -216,7 +217,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
             req.respond({ contentType: 'image/jpeg', body, headers: storageLetsBrowser ? { 'access-control-allow-origin': '*' } : {} });
         });
         const files = direct ? Object.fromEntries(photos.map((p) => [p.uuid, p.bytes.toString('base64')])) : {};
-        await page.evaluateOnNewDocument(pageApi, direct, files, slowPhotos, limit, failOnce);
+        await page.evaluateOnNewDocument(pageApi, direct, files, slowPhotos, limit, failOnce, slowFile);
         // Simple, unless the test's about arranging each PDF (as if Detailed was used last).
         if (view) await page.evaluateOnNewDocument((v) => localStorage.setItem('photos-to-pdf:view', v), view);
         await page.goto('https://test.local/');
@@ -462,6 +463,255 @@ describe.skipIf(!BROWSER)('the popup', () => {
             await context.close();
         }
     }, 90000);
+
+    test("Simple: the PDFs' name, from the settings' template, changed here for this save, with a preview", async () => {
+        const { page, context, errors } = await open(await jobPhotos(Array(3).fill('jpeg')));
+        try {
+            const preview = () => text(page, '.group:nth-child(1) .pdf-saved');
+            // Empty, with the settings' name (filled in) as its placeholder.
+            assert.deepEqual(await page.$eval('#template', (el) => [el.value, el.placeholder]), ['', 'Job #1042 Photos - PO 77']);
+            assert.equal(await preview(), 'Job #1042 Photos - PO 77.pdf');
+            assert.ok(await page.$eval('#template-reset', (el) => el.hidden));
+            // Two per PDF (set in Detailed): two PDFs.
+            await page.click('#view-detailed');
+            await setPerPdf(page, 2);
+            await page.click('#view-simple');
+            assert.equal(await preview(), 'Job #1042 Photos - PO 77 (1 of 2).pdf, and 1 more');
+
+            // Typed in: the preview follows, and Backspace there doesn't leave out the selected photo.
+            await tap(page, tile(1, 1));
+            await page.click('#template', { clickCount: 3 });
+            await page.keyboard.type('{job.job_address}: {job.nope}[ PO {job.job_description}] photos');
+            await page.keyboard.press('Backspace');
+            // The section left out (its field's empty) isn't in the name; it says why.
+            assert.equal(await preview(), '1 Main St_ {job.nope} photo (1 of 2).pdf, and 1 more (left out: Job description is empty)');
+            assert.deepEqual((await sections(page)).map((x) => x.photos), [[1, 2, 3], []]);
+            assert.ok(!(await page.$eval('#template-reset', (el) => el.hidden)));
+            await page.click('#template-reset');
+            assert.equal(await page.$eval('#template', (el) => el.value), '');
+            assert.equal(await preview(), 'Job #1042 Photos - PO 77 (1 of 2).pdf, and 1 more');
+
+            // Detailed names its PDFs from it (their boxes' placeholders), and it's kept when the page is redrawn.
+            await page.click('#template', { clickCount: 3 });
+            await page.keyboard.type('{job.job_address} photos');
+            await page.click('#view-detailed');
+            assert.ok(!(await page.$('.foot .pdf-name')), 'no name box in the footer');
+            assert.deepEqual(await page.$$eval('.pdf-name', (els) => els.map((el) => [el.value, el.placeholder])), [
+                ['', '1 Main St photos (1 of 2)'],
+                ['', '1 Main St photos (2 of 2)'],
+            ]);
+            await page.click('#view-simple');
+            assert.equal(await page.$eval('#template', (el) => el.value), '{job.job_address} photos');
+            await page.click('#save');
+            await page.waitForSelector('.done', { timeout: 30000 });
+            const posts = await page.evaluate(() => window.__posts);
+            assert.deepEqual(posts.map((p) => p.name), ['1 Main St photos (1 of 2).pdf', '1 Main St photos (2 of 2).pdf']);
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 60000);
+
+    test('name boxes: fields coloured in, and offered after a "{", fewer as more is typed', async () => {
+        const { page, context, errors } = await open(await jobPhotos(['jpeg']));
+        try {
+            const painted = () => page.$$eval('.name-colours span', (els) => els.map((el) => [el.className, el.textContent]));
+            const offered = () => page.$$eval('.suggest:not([hidden]) .s-key', (els) => els.map((el) => el.textContent));
+            const value = () => page.$eval('#template', (el) => el.value);
+            assert.deepEqual(await painted(), []); // empty: just its placeholder
+
+            // Clicked into: every field's offered, to put in where the caret is (here, over the text selected).
+            await page.click('#template', { clickCount: 3 });
+            const all = ['{job.generated_job_id}', '{job.purchase_order_number}', '{job.job_address}', '{job.job_description}'];
+            assert.deepEqual(await offered(), all);
+            assert.match(await text(page, '.suggest .s-head'), /Add a job field/);
+            await page.keyboard.press('ArrowDown');
+            await page.keyboard.press('ArrowDown');
+            await page.keyboard.press('Enter');
+            assert.equal(await value(), '{job.job_address}');
+            await page.keyboard.type(' x'); // typing: they go
+            assert.deepEqual(await offered(), []);
+
+            await page.click('#template', { clickCount: 3 });
+            await page.keyboard.type('{');
+            assert.deepEqual(await offered(), all);
+            assert.equal(await page.$('.suggest .s-head'), null);
+            await page.keyboard.type('po'); // "PO number"
+            assert.deepEqual(await offered(), ['{job.purchase_order_number}']);
+            await page.keyboard.press('Enter');
+            await page.keyboard.type(' at {job.add');
+            assert.deepEqual(await offered(), ['{job.job_address}']);
+            await page.keyboard.press('Tab');
+            assert.equal(await value(), '{job.purchase_order_number} at {job.job_address}');
+
+            // Clicked on a field already there: every field, to change it to, with it picked out.
+            await page.$eval('#template', (el) => {
+                el.setSelectionRange(9, 9); // in "{job.purchase_order_number}"
+                el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            });
+            assert.deepEqual(await offered(), all);
+            assert.equal(await text(page, '.suggest .s-head'), 'Change this field to');
+            assert.equal(await text(page, '.suggest .on .s-key'), '{job.purchase_order_number}');
+            await page.keyboard.press('ArrowDown');
+            await page.keyboard.press('Enter');
+            assert.equal(await value(), '{job.job_address} at {job.job_address}');
+            await page.keyboard.press('End');
+
+            // Esc closes the list; a click picks one.
+            await page.keyboard.type(' {');
+            await page.keyboard.press('Escape');
+            assert.deepEqual(await offered(), []);
+            await page.keyboard.type('des');
+            assert.deepEqual(await offered(), ['{job.job_description}']);
+            await page.click('.suggest li');
+            await page.keyboard.type(' {job.nope}');
+            assert.deepEqual(await offered(), []);
+            assert.equal(await value(), '{job.job_address} at {job.job_address} {job.job_description} {job.nope}');
+            assert.deepEqual(await painted(), [
+                ['t-field', '{job.job_address}'],
+                ['t-field', '{job.job_address}'],
+                ['t-field', '{job.job_description}'],
+                ['t-bad', '{job.nope}'],
+            ]);
+            assert.equal(await text(page, '.group:nth-child(1) .pdf-saved'), '1 Main St at 1 Main St {job.nope}.pdf');
+
+            // A [ ] section left out (its field's empty on this job): not in the name beside the box, which says why.
+            await page.click('#template', { clickCount: 3 });
+            await page.keyboard.type('Photos[ for {job.job_description}]');
+            assert.equal(await text(page, '.group:nth-child(1) .pdf-saved'), 'Photos.pdf (left out: Job description is empty)');
+            assert.deepEqual(await painted(), [
+                ['t-section', '[ for {job.job_description}]'],
+                ['t-opt', '['],
+                ['t-field', '{job.job_description}'],
+                ['t-opt', ']'],
+            ]);
+            assert.equal(await page.$('[title]'), null, 'no tooltips');
+
+            // Not for the browser's autofill (a value it doesn't know, no "name" for it to go on) or password managers to fill in.
+            assert.deepEqual(await page.$eval('#template', (el) => ['autocomplete', 'data-lpignore', 'data-1p-ignore', 'data-bwignore'].map((a) => el.getAttribute(a))), ['photos-pdf-name', 'true', '', '']);
+            assert.deepEqual(await page.$$eval('.pdf-name', (els) => els.filter((el) => /name/i.test(el.id + el.getAttribute('aria-label'))).length), 0);
+
+            // "?": how names work, by example, until it's pressed again, Esc, or a press elsewhere. Its text can be copied.
+            const helpOpen = () => page.$eval('.help-box', (el) => !el.hidden);
+            await page.click('.name-help');
+            assert.ok(await helpOpen());
+            assert.deepEqual(await page.$$eval('.help-examples li', (els) => els.map((el) => [el.querySelector('.help-template').textContent, el.querySelector('.help-result').textContent])), [
+                ['Job #{job.generated_job_id}', '→ Job #1042'],
+                ['Job #{job.generated_job_id} Photos[ - PO {job.purchase_order_number}]', '→ Job #1042 Photos - PO 77'],
+                ['{job.job_address} - Job #{job.generated_job_id}', '→ 1 Main St - Job #1042'],
+            ]);
+            assert.equal(await page.$eval('.help-box', (el) => getComputedStyle(el).userSelect), 'text');
+            assert.equal(await page.$eval('.name-help', (el) => el.getAttribute('aria-expanded')), 'true');
+            // Use: it goes in the box, and the help closes.
+            await page.click('.help-examples li:nth-child(2) [data-use]');
+            assert.ok(!(await helpOpen()));
+            assert.equal(await value(), 'Job #{job.generated_job_id} Photos[ - PO {job.purchase_order_number}]');
+            assert.equal(await text(page, '.group:nth-child(1) .pdf-saved'), 'Job #1042 Photos - PO 77.pdf');
+            await page.click('.name-help');
+            await page.click('.name-help');
+            assert.ok(!(await helpOpen()));
+            await page.click('.name-help');
+            await page.keyboard.press('Escape');
+            assert.ok(!(await helpOpen()));
+            await page.click('.name-help');
+            await page.mouse.click(5, 300);
+            assert.ok(!(await helpOpen()));
+            assert.deepEqual(await offered(), []); // the "?" isn't the box: no fields offered
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 60000);
+
+    test('Detailed: a PDF can be given its own name, which stays with it as PDFs come and go', async () => {
+        const { page, context, errors } = await open(await jobPhotos(Array(3).fill('jpeg')), { view: 'detailed' });
+        try {
+            await setPerPdf(page, 2);
+            await page.click('#resplit');
+            // Each starts empty, with the name from the template (filled in) as its placeholder.
+            const boxes = () => page.$$eval('.pdf-name', (els) => els.map((el) => [el.value, el.placeholder, el.closest('.group-head').querySelector('.pdf-saved').textContent]));
+            const resets = () => page.$$eval('.pdf-reset', (els) => els.map((el) => !el.hidden));
+            assert.deepEqual(await boxes(), [
+                ['', 'Job #1042 Photos - PO 77 (1 of 2)', ''],
+                ['', 'Job #1042 Photos - PO 77 (2 of 2)', ''],
+            ]);
+            assert.deepEqual(await resets(), [false, false]);
+
+            // Its own name can have fields too (what it comes out as is beside it); Reset empties it again.
+            const rename = async (gi, name) => {
+                await page.click(`.pdf-name[data-g="${gi}"]`, { clickCount: 3 });
+                await page.keyboard.type(name);
+            };
+            await rename(1, 'Kitchen {job.job_address}');
+            assert.equal(await text(page, '.group:nth-child(2) .pdf-saved'), 'Kitchen 1 Main St.pdf');
+            assert.deepEqual(await resets(), [false, true]);
+            assert.deepEqual(await selectedPhotos(page), []); // typing there isn't selecting
+            await page.click('.group:nth-child(2) .pdf-reset');
+            assert.deepEqual((await boxes())[1], ['', 'Job #1042 Photos - PO 77 (2 of 2)', '']);
+            await rename(1, 'Kitchen {job.job_address}');
+
+            // PDF 1 emptied: the named PDF is now PDF 1, still with its name.
+            await doubleClick(page, tile(1, 1));
+            await wait(450);
+            await doubleClick(page, tile(1, 1));
+            assert.deepEqual((await sections(page)).map((x) => x.label), ['PDF 1', 'New PDF', 'Left out']);
+            assert.deepEqual(await boxes(), [['Kitchen {job.job_address}', 'Job #1042 Photos - PO 77', 'Kitchen 1 Main St.pdf']]);
+            await page.click('#every'); // back at the end: into it (it has room), then a new PDF
+            assert.deepEqual((await sections(page)).map((x) => x.photos), [[3, 1], [2], [], []]);
+
+            await page.click('#save');
+            await page.waitForSelector('.done', { timeout: 30000 });
+            const posts = await page.evaluate(() => window.__posts);
+            assert.deepEqual(posts.map((p) => p.name), ['Kitchen 1 Main St.pdf', 'Job #1042 Photos - PO 77 (2 of 2).pdf']);
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 60000);
+
+    test('a photo exactly the same as one before it is tagged "Duplicate", and nothing moves', async () => {
+        // 1 and 3 are the same file; 4 is the same picture with an EXIF orientation, so not the same file.
+        const photos = await jobPhotos(['jpeg', 'png', 'jpeg', 6]);
+        const { page, context, errors } = await open(photos, { view: 'detailed' });
+        try {
+            const tagged = () => page.$$eval('.ph', (els) => els.filter((el) => !el.querySelector('.dup').hidden).map((el) => Number(el.parentElement.dataset.u.slice(-4))));
+            await page.waitForFunction(() => document.querySelectorAll('.dup:not([hidden])').length, { timeout: 30000 });
+            assert.deepEqual(await tagged(), [3]);
+            assert.equal(await text(page, '.dup:not([hidden])'), 'Duplicate');
+            assert.deepEqual((await sections(page)).map((x) => x.photos), [[1, 2, 3, 4], [], []]);
+
+            // Added from the device: a copy of one on the job is tagged too. Left out, it stays tagged.
+            const device = path.join(require('node:os').tmpdir(), 'photos-to-pdf-copy.png');
+            fs.writeFileSync(device, photos[1].bytes);
+            await (await page.$('#add')).uploadFile(device);
+            await page.waitForFunction(() => document.querySelectorAll('.dup:not([hidden])').length === 2, { timeout: 30000 });
+            await doubleClick(page, tile(1, 3));
+            assert.deepEqual((await sections(page)).at(-1).photos, [3]);
+            assert.equal((await tagged()).length, 2);
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 60000);
+
+    test("a duplicate is tagged as soon as it's found, without waiting for photos before it still loading", async () => {
+        // 1, 3 and 4 are the same file; 1 is slow to load.
+        const photos = await jobPhotos(['jpeg', 'png', 'jpeg', 'jpeg']);
+        const { page, context, errors } = await open(photos, { slowFile: uuid(1) });
+        try {
+            const tagged = () => page.$$eval('.ph', (els) => els.filter((el) => !el.querySelector('.dup').hidden).map((el) => Number(el.parentElement.dataset.u.slice(-4))));
+            // 4 is a copy of 3 whatever 1 turns out to be.
+            await page.waitForFunction(() => document.querySelectorAll('.dup:not([hidden])').length, { timeout: 30000 });
+            assert.deepEqual(await tagged(), [4]);
+            assert.equal(await page.$eval('.ph[data-i="0"]', (el) => !!el.querySelector('img')), false, 'photo 1 still loading');
+            // Then 1 loads, and it's the original: 3 is a copy too.
+            await page.waitForFunction(() => document.querySelectorAll('.dup:not([hidden])').length === 2, { timeout: 30000 });
+            assert.deepEqual(await tagged(), [3, 4]);
+            assert.deepEqual(errors, []);
+        } finally {
+            await context.close();
+        }
+    }, 60000);
 
     test('photos are selected by clicking (Ctrl, Shift) or a box, then dragged or left out together', async () => {
         const { page, context, errors } = await open(await jobPhotos(Array(8).fill('jpeg')));
