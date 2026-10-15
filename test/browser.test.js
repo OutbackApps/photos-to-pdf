@@ -123,10 +123,12 @@ describe.skipIf(!BROWSER)('the popup', () => {
     let browser;
     let makePhoto;
     let makeNoise;
+    let sdkCss = ''; // ServiceM8's add-on stylesheet, as the popup loads it (none if it can't be fetched)
     const realFetch = globalThis.fetch;
 
     beforeAll(async () => {
         for (const level of ['log', 'warn', 'error']) spyOn(console, level).mockImplementation(() => { });
+        sdkCss = await realFetch('https://platform.servicem8.com/sdk/1.0/sdk.css').then((r) => (r.ok ? r.text() : ''), () => '');
         browser = await puppeteer.launch({ executablePath: BROWSER, headless: true, args: ['--no-sandbox'] });
         const page = await browser.newPage();
         /** A 400 × 300 photo with coloured corners, made by the browser. */
@@ -230,6 +232,7 @@ describe.skipIf(!BROWSER)('the popup', () => {
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const url = req.url();
+            if (sdk && url.includes('platform.servicem8.com/sdk/1.0/sdk.css')) return req.respond({ contentType: 'text/css', body: sdkCss });
             if (sdk && url.includes('platform.servicem8.com/sdk')) return req.respond({ contentType: 'text/javascript', body: sdk });
             if (pages[url]) return req.respond({ contentType: 'text/html', body: pages[url] });
             if (url.startsWith('https://test.local/pdfjs/')) return req.respond({ contentType: 'text/javascript', body: fs.readFileSync(path.join(PDFJS, path.basename(url))) });
@@ -317,6 +320,16 @@ describe.skipIf(!BROWSER)('the popup', () => {
     test('every photo starts in a PDF, split by the number per PDF (50, and no more than 50)', async () => {
         const { page, context, errors } = await open(await jobPhotos(Array(60).fill('jpeg')), { view: 'detailed' });
         try {
+            // ServiceM8's stylesheet is loaded (when it could be fetched for the test), and the tiles are still squares.
+            // (Its rules can't be read from the page: it's another site's. What it does to a <pre>, which the popup doesn't style, can.)
+            const preBackground = await page.evaluate(() => {
+                const pre = document.body.appendChild(document.createElement('pre'));
+                const background = getComputedStyle(pre).backgroundColor;
+                pre.remove();
+                return background;
+            });
+            if (sdkCss) assert.equal(preBackground, 'rgb(237, 239, 240)');
+            assert.ok(await page.$eval('.ph', (el) => Math.abs(el.offsetWidth - el.offsetHeight) <= 1));
             assert.equal(await page.$eval('#per', (el) => el.value), '50');
             const s = await sections(page);
             assert.deepEqual(s.map((x) => x.label), ['PDF 1', 'PDF 2', 'New PDF', 'Left out']);

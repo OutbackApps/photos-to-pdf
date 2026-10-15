@@ -6,12 +6,33 @@
  */
 
 const SHELL_CSS = `
-/* ServiceM8's own look: its add-on stylesheet's (sdk.css) font, greys, inputs and buttons, and its green. */
+/*
+ * ServiceM8's add-on stylesheet (sdk.css) is loaded first, as ServiceM8 asks: its font, text, buttons and
+ * inputs. These are its greys and green, and the popup's own parts (photo tiles, name boxes, the save
+ * button), which sdk.css would otherwise style as plain buttons and inputs.
+ */
 :root { --brand: #7dc836; --brand-ink: #4e8a1e; --ink: #4d4d4d; --muted: #8c8c8c; --line: #d6dadc; --field: #edeff0; --field-line: #cdd2d4; --button: #e6e6e6; --button-ink: #636362; --empty: #e2e4e6; --empty-line: #c4c9cc; --surface: #fff; --surface-2: #f4f5f6; --danger: #eb5a46; }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 12px 12px 96px; font: 14px/1.4 'Open Sans', Arial, Helvetica, sans-serif; color: var(--ink); background: var(--surface); }
 /* Nothing on the page highlights when a mouse is dragged across it (photos are dragged here), except what's for typing or copying. */
 body { user-select: none; -webkit-user-select: none; }
+/*
+ * sdk.css's buttons are a set height, with a frame on hover or focus and when pressed: the popup's own
+ * buttons (photo tiles, "?", the save button) size and draw themselves. Its labels are bold blocks, and
+ * its text and number boxes full-width blocks with space under them: those here sit in a row.
+ */
+button { height: auto; }
+.ph:not([disabled]):hover, .ph:not([disabled]):focus, .ph:not([disabled]):active,
+.name-help:not([disabled]):hover, .name-help:not([disabled]):focus, .name-help:not([disabled]):active,
+.btn:not([disabled]):hover, .btn:not([disabled]):focus, .btn:not([disabled]):active { box-shadow: none; }
+.ph:not([disabled]):hover, .ph:not([disabled]):focus, .ph:not([disabled]):active { border: 0; background: var(--field); }
+.btn:not([disabled]):hover, .btn:not([disabled]):focus, .btn:not([disabled]):active { border: 0; color: #fff; }
+.btn:not([disabled]):focus { background: var(--brand); }
+label { margin: 0; }
+.bar .enlarge { font-weight: normal; }
+.per input[type="number"], .name-field input.pdf-name { display: block; margin: 0; max-width: none; }
+/* A name box's text lines up exactly with its coloured copy behind it, disabled too. */
+.name-field input.pdf-name { padding: .4em 30px .4em .5em; color: transparent; background: transparent; }
 input, .done-names { user-select: text; -webkit-user-select: text; }
 h1, h2 { font-weight: 600; }
 h1 { font-size: 18px; margin: 0 0 2px; }
@@ -103,7 +124,8 @@ body.dropping .groups { outline: 2px dashed var(--brand); outline-offset: 4px; b
 .t-opt { color: #2f7bbf; }
 /* "?" at the end of a name box (room's left for it), and how names work, under it. */
 .name-help { position: absolute; top: 50%; right: 5px; width: 20px; height: 20px; padding: 0; transform: translateY(-50%); border: 1px solid var(--field-line); border-radius: 10px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; line-height: 18px; }
-.name-help:hover, .name-help[aria-expanded="true"] { border-color: var(--brand); color: var(--brand-ink); }
+.name-help:not([disabled]):focus { border: 1px solid var(--field-line); background: var(--surface-2); }
+.name-help:not([disabled]):hover, .name-help[aria-expanded="true"]:not([disabled]) { border: 1px solid var(--brand); background: var(--surface-2); color: var(--brand-ink); }
 /* Its text can be selected and copied (the rest of the page can't: photos are dragged there). */
 .help-box { position: fixed; z-index: 30; padding: 10px 14px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, .18); font-size: 13px; line-height: 1.5; user-select: text; -webkit-user-select: text; }
 .help-box[hidden] { display: none; }
@@ -173,6 +195,7 @@ function shell(title, body, script) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title}</title>
 <script src="https://platform.servicem8.com/sdk/1.0/sdk.js"></script>
+<link rel="stylesheet" href="https://platform.servicem8.com/sdk/1.0/sdk.css">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap">
 <style>${SHELL_CSS}</style>

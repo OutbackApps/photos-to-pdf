@@ -38,8 +38,10 @@ Once they're saved, the popup says which PDFs were saved and to reopen the job t
 | --- | --- |
 | `addon.jsonc` | The add-on's config for [Addon Kit](https://www.npmjs.com/package/@servicem8/addon-kit): its slug, its manifest (the **Photos to PDF** job card button on the web and in the app, and the permissions it needs) and the function's entry point. |
 | `index.js` | The function: the events the popup and job card call, and the ServiceM8 API calls. No runtime dependencies; ServiceM8 runs it on Node.js 24. |
-| `page.js` | The popup: its styles, and the code that runs in the browser (sent to the page by `index.js`). |
+| `page.js` | The popup: its styles (on top of ServiceM8's add-on stylesheet, sdk.css, as ServiceM8 asks), and the code that runs in the browser (sent to the page by `index.js`). |
 | `icon.png` | The job card button's icon, linked from `addon.jsonc`. |
+| `docs/` | The help pages and privacy policy for customers, published with GitHub Pages at https://outbackapps.github.io/photos-to-pdf/ (Settings → Pages → main, /docs). Keep them up to date with the add-on. |
+| `store-listing.md` | What to enter for the Add-on Store listing, and the checklist before submitting. |
 | `package.json`, `bun.lock` | Addon Kit (a dev dependency) and the scripts below. |
 | `test/` | Tests (no ServiceM8 account needed): `handler.test.js` for the function, `browser.test.js` for the popup in a real browser. |
 
@@ -56,6 +58,10 @@ bun run check   # validate addon.jsonc and bundle the function, without deployin
 ```
 
 The tests pretend to be ServiceM8 (its API, its photo storage and its SDK), so they need no account. `handler.test.js` covers the function. `browser.test.js` opens the popup in a headless browser, with its calls to the function running `index.js` itself: it leaves photos out, drags them between PDFs, saves, and opens the saved PDFs with pdf.js to check every page (JPEGs byte for byte, the right way round). It needs Chrome, Edge or Chromium, found in the usual places or set with `BROWSER_PATH`; without one it's skipped, except in CI. They run with Bun, but the function itself runs on Node.js in ServiceM8, so `index.js` and `page.js` only use what both have. GitHub Actions runs the tests and `bun run check` on every push.
+
+## Add-on Store
+
+The add-on is written to ServiceM8's [Add-on Store Requirements](https://developer.servicem8.com/docs/addon-store-requirements) and [style guidelines](https://developer.servicem8.com/docs/add-on-style): OAuth through ServiceM8 (no separate account), only the permissions it needs, nothing stored outside ServiceM8, settings on ServiceM8's Preferences page, and sdk.css. The listing details, screenshots to take and the steps before submitting are in `store-listing.md`; the help and privacy policy are in `docs/`.
 
 ## Deploy to ServiceM8
 

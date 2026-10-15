@@ -9,6 +9,10 @@
     // Bump this whenever the add-on changes.
     "version": "1.5",
 
+    // Shown with the add-on in ServiceM8. The help pages are docs/ in this repo, on GitHub Pages.
+    "supportEmail": "support@outbackapps.com",
+    "supportURL": "https://outbackapps.github.io/photos-to-pdf/",
+
     // The function's entry point, bundled by `addon-kit deploy`.
     "main": "index.js",
 

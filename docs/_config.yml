@@ -1,0 +1,4 @@
+# GitHub Pages (Settings > Pages > Deploy from a branch: main, /docs).
+title: Photos to PDF
+description: Help for Photos to PDF, an add-on for ServiceM8 by Outback Apps.
+theme: jekyll-theme-primer
