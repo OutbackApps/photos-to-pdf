@@ -43,7 +43,7 @@
             "name": "Photos to PDF",
             "type": "online",
             "entity": "job",
-            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@40d89dd/icon.png",
+            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@40d89dd1f4a20043f1f7b1362309f533b468d6b3/icon.png",
             "event": "photos_to_pdf",
             "location": "modal"
         },
@@ -51,7 +51,7 @@
             "name": "Photos to PDF",
             "type": "app",
             "entity": "job",
-            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@40d89dd/icon.png",
+            "iconURL": "https://cdn.jsdelivr.net/gh/OutbackApps/photos-to-pdf@40d89dd1f4a20043f1f7b1362309f533b468d6b3/icon.png",
             "event": "photos_to_pdf"
         }
     ]
