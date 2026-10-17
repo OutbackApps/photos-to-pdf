@@ -10,9 +10,10 @@
         "files.trimTrailingWhitespace": false
     },
 
-    // Not searched or watched: installed packages and Bun's lockfile.
+    // Not searched or watched: installed packages, Bun's lockfile and the downloaded test browser.
     "search.exclude": {
         "node_modules": true,
-        "bun.lock": true
+        "bun.lock": true,
+        ".cache": true
     }
 }

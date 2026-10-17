@@ -5,8 +5,9 @@
  * only ServiceM8 is pretend: its SDK, its API and its photo storage. The PDFs it saves are opened
  * with pdf.js to check what's on their pages.
  *
- * Needs Chrome, Edge or Chromium (BROWSER_PATH, or the usual places). Skipped without one, except
- * in CI, where it must run.
+ * Runs in the project's own browser (Chrome for Testing, the version pinned in package.json), which
+ * bun install downloads (scripts/browser.js): the same on every computer and in CI. BROWSER_PATH
+ * runs them in another browser instead.
  */
 
 const { describe, test, beforeAll, afterAll, spyOn, mock } = require('bun:test');
@@ -15,16 +16,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const puppeteer = require('puppeteer-core');
 const { handler } = require('..');
+const testBrowser = require('../scripts/browser');
 
-const BROWSER = [
-    process.env.BROWSER_PATH,
-    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-].find((p) => p && fs.existsSync(p));
-if (!BROWSER && process.env.CI) throw new Error('The browser tests need Chrome, Edge or Chromium (set BROWSER_PATH).');
+const BROWSER = process.env.BROWSER_PATH || testBrowser.executablePath();
+if (!fs.existsSync(BROWSER)) {
+    const why = process.env.BROWSER_PATH ? `BROWSER_PATH isn't there: ${BROWSER}` : `The test browser (${testBrowser.label}) isn't downloaded: run bun run browser.`;
+    throw new Error(why);
+}
 
 const PDFJS = path.join(__dirname, '..', 'node_modules', 'pdfjs-dist', 'build');
 const JOB = '11111111-2222-3333-4444-555555555555';
@@ -119,7 +117,7 @@ function pageApi(direct, files, slowPhotos, limit, failOnce, slowFile) {
     };
 }
 
-describe.skipIf(!BROWSER)('the popup', () => {
+describe('the popup', () => {
     let browser;
     let makePhoto;
     let makeNoise;

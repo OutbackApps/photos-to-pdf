@@ -274,6 +274,11 @@ test('templateParts says which [ ] sections are left out, and for which empty fi
     ]);
 });
 
+test("runs on the project's Bun version, as CI does (packageManager in package.json)", () => {
+    const wanted = require('../package.json').packageManager.replace(/^bun@/, '');
+    assert.equal(Bun.version, wanted, `Bun ${Bun.version} is running; this project uses ${wanted}. README, "On another computer", says how to install it.`);
+});
+
 test('addon.jsonc is valid and its events are handled', () => {
     const manifest = readManifest();
     const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');

@@ -1,4 +1,6 @@
 node_modules/
+# The test browser (scripts/browser.js), downloaded by bun install.
+.cache/
 *.log
 .env
 .env.*

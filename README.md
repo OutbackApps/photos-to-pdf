@@ -42,22 +42,38 @@ Once they're saved, the popup says which PDFs were saved and to reopen the job t
 | `icon.png` | The job card button's icon, linked from `addon.jsonc`. |
 | `docs/` | The help pages and privacy policy for customers, published with GitHub Pages at https://outbackapps.github.io/photos-to-pdf/ (Settings → Pages → main, /docs). Keep them up to date with the add-on. |
 | `store-listing.md` | What to enter for the Add-on Store listing, and the checklist before submitting. |
-| `package.json`, `bun.lock` | Addon Kit (a dev dependency) and the scripts below. |
+| `package.json`, `bun.lock` | The versions of Bun, the packages (Addon Kit, the spell checker, the test tools) and the test browser, and the scripts below. |
 | `test/` | Tests (no ServiceM8 account needed): `handler.test.js` for the function, `browser.test.js` for the popup in a real browser. |
+| `scripts/browser.js` | Downloads the test browser (run by `bun install`). |
+| `CLAUDE.md` | The project's commands and rules, for Claude Code. |
 
 ## Development
 
-Needs [Bun](https://bun.sh) 1.3 or later.
+Everything the project needs comes with the repo or `bun install`, at fixed versions, so it works the same on any computer and in CI:
 
-**On another computer:** install Bun and Git, clone the repo, and open the folder in VS Code. It offers to install the recommended extensions (`.vscode/extensions.json`); say yes. The project's settings (`.vscode/settings.json`, `.editorconfig`: 4-space indents, LF line endings) and the tool versions (`packageManager` in `package.json`, `bun.lock`) come with the repo. Then `bun install`, and `bun run login` once to deploy from there. The browser tests use Chrome or Edge if it's installed (or set `BROWSER_PATH`).
+- **Bun** 1.3.14 (`packageManager` in `package.json`; CI uses the same). A test fails if another version is running.
+- **Packages**, pinned by `bun.lock`, including the spell checker and Addon Kit.
+- **The test browser:** Chrome for Testing, at the version in `package.json`'s `testBrowser`. `bun install` downloads it once (about 170 MB) into `.cache/` (not in the repo); `bun run browser` does it again if that didn't work, e.g. offline.
+- **Editor setup:** `.vscode/settings.json` and `.editorconfig` (4-space indents, LF line endings), `.vscode/extensions.json` (the recommended extensions), and `cspell.json` (the project's words).
+- **For Claude Code:** `CLAUDE.md` (the project's commands and rules).
+
+**On another computer:**
+
+1. Install [Git](https://git-scm.com) and Bun 1.3.14:
+   - Windows (PowerShell): `iex "& {$(irm https://bun.sh/install.ps1)} -Version 1.3.14"`
+   - macOS or Linux: `curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`
+2. Clone the repo and open the folder in VS Code. It offers to install the recommended extensions; say yes.
+3. `bun install` (also downloads the test browser), then `bun test`: everything should pass, as in CI.
+4. To deploy from there: `bun run login` once (Addon Kit keeps the login in `~/.sm8` on that computer).
 
 ```sh
-bun install
-bun test        # run the tests
-bun run check   # validate addon.jsonc and bundle the function, without deploying
+bun install       # packages and the test browser
+bun test          # the tests
+bun run spell     # spelling
+bun run check     # validate addon.jsonc and bundle the function, without deploying
 ```
 
-The tests pretend to be ServiceM8 (its API, its photo storage and its SDK), so they need no account. `handler.test.js` covers the function. `browser.test.js` opens the popup in a headless browser, with its calls to the function running `index.js` itself: it leaves photos out, drags them between PDFs, saves, and opens the saved PDFs with pdf.js to check every page (JPEGs byte for byte, the right way round). It needs Chrome, Edge or Chromium, found in the usual places or set with `BROWSER_PATH`; without one it's skipped, except in CI. They run with Bun, but the function itself runs on Node.js in ServiceM8, so `index.js` and `page.js` only use what both have. GitHub Actions runs the tests and `bun run check` on every push.
+The tests pretend to be ServiceM8 (its API, its photo storage and its SDK), so they need no account. `handler.test.js` covers the function. `browser.test.js` opens the popup in the test browser, with its calls to the function running `index.js` itself: it leaves photos out, drags them between PDFs, names them, saves, and opens the saved PDFs with pdf.js to check every page (JPEGs byte for byte, the right way round). It loads ServiceM8's real sdk.css when it can be fetched. `BROWSER_PATH` runs it in another browser instead. The tests run with Bun, but the function itself runs on Node.js in ServiceM8, so `index.js` and `page.js` only use what both have. GitHub Actions runs the tests, spelling and `bun run check` on every push, in the same browser.
 
 ## Add-on Store
 

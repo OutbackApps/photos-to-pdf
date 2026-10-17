@@ -1,19 +1,32 @@
+# Every push and pull request (or Run workflow): the tests, spelling and a dry-run deploy. It never deploys.
 name: CI
 
 on:
     push:
     pull_request:
+    workflow_dispatch:
+
+permissions:
+    contents: read
 
 jobs:
     test:
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v5
             - uses: oven-sh/setup-bun@v2
               with:
                   bun-version-file: package.json
+            # The test browser (package.json's testBrowser), kept between runs rather than downloaded each time.
+            - uses: actions/cache@v4
+              with:
+                  path: .cache/browsers
+                  key: test-browser-${{ runner.os }}-${{ hashFiles('package.json') }}
+                  restore-keys: test-browser-${{ runner.os }}-
+            # Also downloads the test browser, if it isn't cached (postinstall: scripts/browser.js).
             - run: bun install --frozen-lockfile
-            # The browser tests use the runner's Chrome.
             - run: bun test
+            - run: bun run spell
             # Validates addon.jsonc and bundles the function, without deploying.
             - run: bun run check
