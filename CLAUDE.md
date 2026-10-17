@@ -10,6 +10,7 @@ Photos to PDF: a ServiceM8 add-on (Simple Function, hosted by ServiceM8, deploye
 - `bun run deploy` - deploys to ServiceM8 and activates it at once: only when asked. Bump `version` in addon.jsonc when the add-on changes; never change `slug` (a new slug is a new add-on).
 - `bun run tail` - live logs (start it before using the add-on).
 - Commit and push only when asked. A push runs CI (tests, spelling, dry run); it doesn't deploy.
+- Commits are by Outback Apps alone (this repo's git config: `user.name` "Outback Apps", `user.email` 340592536+OutbackApps@users.noreply.github.com). No `Co-Authored-By` or other attribution lines in commit messages or pull requests: GitHub lists anyone named there as a contributor.
 
 ## Layout
 - `index.js` - the function: the events (button and those the popup invokes) and ServiceM8 API calls. Node.js 24 in ServiceM8, Bun in tests: only what both have, no runtime dependencies.

@@ -63,6 +63,8 @@ Everything the project needs comes with the repo or `bun install`, at fixed vers
    - Windows (PowerShell): `iex "& {$(irm https://bun.sh/install.ps1)} -Version 1.3.14"`
    - macOS or Linux: `curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`
 2. Clone the repo and open the folder in VS Code. It offers to install the recommended extensions; say yes.
+   Commits are made as Outback Apps (the account the repo's on), so set that in the clone:
+   `git config user.name "Outback Apps"` and `git config user.email "340592536+OutbackApps@users.noreply.github.com"`.
 3. `bun install` (also downloads the test browser), then `bun test`: everything should pass, as in CI.
 4. To deploy from there: `bun run login` once (Addon Kit keeps the login in `~/.sm8` on that computer).
 
@@ -113,4 +115,4 @@ To deploy from CI, store an API key as the `SM8_API_KEY` secret and run `bun ins
 - **Saving goes straight to ServiceM8.** The logs have no `photos_to_pdf_save` entries, so PDFs are saved from the browser, not through the function (where they would have to be under 3.5 MB).
 - **Photos.** The browser isn't allowed to fetch photos from ServiceM8 with the token, so it asks the function for each photo's storage link (`photos_to_pdf_photo_url`) and fetches it from there. If the storage won't let it, photos come through the function instead: `Relayed photo` in the logs, one per photo. If a photo won't load at all, the logs say why: `Photo storage refused a piece` or `Photo download failed`, with the status.
 - **Who the PDFs show as in the diary.** They're saved as the staff member. If ServiceM8 refuses that, they're saved as the add-on.
-- **Icons.** The Add-on Store icon is uploaded to the store listing in ServiceM8, so `addon.jsonc` has no top-level `iconURL`. The job card button's `iconURL` (in both actions) is `icon.png` from this repo (192 × 192: ServiceM8 needs at least 171 × 171; kept small so it shows quickly), served by jsDelivr and pinned to the commit that added it (`@0022c65`), so the repo must stay public. A pinned link shows at once and never changes; `@main` can lag by hours. To change the icon, push the new `icon.png`, then put that commit in both `iconURL`s in `addon.jsonc`. ServiceM8's own upload links expire after a day, so they can't be used here.
+- **Icons.** The Add-on Store icon is uploaded to the store listing in ServiceM8, so `addon.jsonc` has no top-level `iconURL`. The job card button's `iconURL` (in both actions) is `icon.png` from this repo (192 × 192: ServiceM8 needs at least 171 × 171; kept small so it shows quickly), served by jsDelivr and pinned to the commit that added it (`@40d89dd`), so the repo must stay public. A pinned link shows at once and never changes; `@main` can lag by hours. To change the icon, push the new `icon.png`, then put that commit in both `iconURL`s in `addon.jsonc`. ServiceM8's own upload links expire after a day, so they can't be used here.
