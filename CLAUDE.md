@@ -1,23 +1,26 @@
 # CLAUDE.md
 
-Photos to PDF: a ServiceM8 add-on (Simple Function, hosted by ServiceM8, deployed with Addon Kit). A job card button opens a popup that makes PDFs of the job diary's photos and saves them back to the job. See README.md for how it works and what's been seen in practice.
+Photos to PDF: a ServiceM8 add-on (Simple Function, hosted by ServiceM8, deployed with Addon Kit), in TypeScript run by Bun. A job card button opens a popup that makes PDFs of the job diary's photos and saves them back to the job. See README.md for the layout, how it works and what's been seen in practice.
 
 ## Commands
 - `bun install` - packages, and the test browser (Chrome for Testing, pinned in package.json's `testBrowser`, downloaded once into `.cache/`).
-- `bun test` - must pass before finishing a change. `test/handler.test.js` (the function, fake ServiceM8 API) and `test/browser.test.js` (the popup in the test browser, its calls running index.js, saved PDFs read back with pdf.js). Same results here as in CI; nothing's skipped.
+- `bun test` - must pass before finishing a change (the popup's built first). `test/function.test.ts` (the function, fake ServiceM8 API), `test/template.test.ts` (the PDF name's template) and `test/popup.test.ts` (the popup in the test browser, its calls running src/function, saved PDFs read back with pdf.js). Same results here as in CI; nothing's skipped.
+- `bun run typecheck` - must pass too (strict TypeScript, as outback-workbench).
 - `bun run spell` - must pass too (the same `cspell.json` as the Code Spell Checker extension).
-- `bun run check` - validates addon.jsonc and bundles the function, without deploying.
+- `bun run build` - builds the popup (src/page) into one script, `src/function/page-assets.gen.ts` (not in the repo); the tests, typecheck, check and deploy do it first.
+- `bun run check` - builds, validates addon.jsonc and bundles the function, without deploying.
 - `bun run deploy` - deploys to ServiceM8 and activates it at once: only when asked. Bump `version` in addon.jsonc when the add-on changes; never change `slug` (a new slug is a new add-on).
 - `bun run tail` - live logs (start it before using the add-on).
-- Commit and push only when asked. A push runs CI (tests, spelling, dry run); it doesn't deploy.
+- Commit and push only when asked. A push runs CI (type check, tests, spelling, dry run); it doesn't deploy.
 - Commits are by Outback Apps alone (this repo's git config: `user.name` "Outback Apps", `user.email` 340592536+OutbackApps@users.noreply.github.com). No `Co-Authored-By` or other attribution lines in commit messages or pull requests: GitHub lists anyone named there as a contributor.
 
 ## Layout
-- `index.js` - the function: the events (button and those the popup invokes) and ServiceM8 API calls. Node.js 24 in ServiceM8, Bun in tests: only what both have, no runtime dependencies.
-- `page.js` - the popup: `SHELL_CSS`, `shell()`, and `photosToPdfPage`, which runs in the browser. It's sent as text (`pageScript()`, via `toString`), so it can't `require` anything or use the rest of page.js, except the standalone top-level helpers (`jpegInfo`..., `fillTemplate`, `templateParts`, `fieldAt`): a new top-level helper must be added to `pageScript()`'s list (and exported if tests use it).
-- `addon.jsonc` - manifest: actions, OAuth scopes (keep `bun run login`'s in step), the `pdf_name` preference (its default must match `DEFAULT_NAME` in index.js; a test checks).
+- `src/function/` - runs in ServiceM8 (Node.js 24): `index.ts` (the handler: `EVENTS`, each event and what answers it), `servicem8.ts`, `photos.ts`, `page.ts` (the popup's HTML; `DEFAULT_NAME`, which must match addon.jsonc's preference default: a test checks). Only what Node.js and Bun both have, no runtime dependencies.
+- `src/page/` - the popup, in the browser, as modules bundled by `scripts/build-page.ts`: `main.ts` starts it; `store.ts` is its state (one object every module reads and changes); `render.ts` draws it and `update()` keeps it up to date without redrawing; `arrange.ts` (select, drag), `names/` (template, name boxes, suggestions, help), `photos/`, `pdf/`, `save.ts`, `upload.ts`. Modules only create their own elements and listeners when loaded: anything that needs the job runs after `main.ts` loads it.
+- `src/shared/types.ts` - what the function and the popup send each other (`Boot`, `CallArgs`, `Replies`): change both sides together.
+- `addon.jsonc` - manifest: entry point `src/function/index.ts`, actions (each event must be in `EVENTS`), OAuth scopes (keep `bun run login`'s in step), the `pdf_name` preference.
 - `docs/` - help and privacy policy for customers (GitHub Pages). Keep them true to what the add-on does. `store-listing.md` - the Add-on Store listing.
-- `scripts/browser.js` - downloads the test browser.
+- `scripts/` - `build-page.ts` (the popup's script), `browser.ts` (downloads the test browser).
 
 ## Rules
 - ServiceM8 Add-on Store rules: no "M8", "Mate" or "SM8" in names; spell ServiceM8 correctly; no self-promotion in the popup; only the permissions needed; nothing stored outside ServiceM8 (if that changes, update docs/privacy.md).

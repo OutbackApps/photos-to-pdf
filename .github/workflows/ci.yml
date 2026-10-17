@@ -1,4 +1,4 @@
-# Every push and pull request (or Run workflow): the tests, spelling and a dry-run deploy. It never deploys.
+# Every push and pull request (or Run workflow): the type check, tests, spelling and a dry-run deploy. It never deploys.
 name: CI
 
 on:
@@ -24,9 +24,10 @@ jobs:
                   path: .cache/browsers
                   key: test-browser-${{ runner.os }}-${{ hashFiles('package.json') }}
                   restore-keys: test-browser-${{ runner.os }}-
-            # Also downloads the test browser, if it isn't cached (postinstall: scripts/browser.js).
+            # Also downloads the test browser, if it isn't cached (postinstall: scripts/browser.ts).
             - run: bun install --frozen-lockfile
+            - run: bun run typecheck
             - run: bun test
             - run: bun run spell
-            # Validates addon.jsonc and bundles the function, without deploying.
+            # Builds the popup, validates addon.jsonc and bundles the function, without deploying.
             - run: bun run check

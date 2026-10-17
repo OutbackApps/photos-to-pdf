@@ -1,0 +1,24 @@
+{
+    // Type checking only (bun run typecheck): Bun runs the TypeScript itself, and Addon Kit and
+    // scripts/build-page.ts bundle it.
+    "compilerOptions": {
+        // The function (Node.js 24 in ServiceM8) and the popup (the browser) are type checked together.
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        "target": "ESNext",
+        "module": "Preserve",
+        "moduleDetection": "force",
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "verbatimModuleSyntax": true,
+        "noEmit": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
+        "noImplicitOverride": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "types": ["bun"]
+    },
+    "include": ["src", "test", "scripts"]
+}

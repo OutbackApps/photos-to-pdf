@@ -14,7 +14,7 @@
     "supportURL": "https://outbackapps.github.io/photos-to-pdf/",
 
     // The function's entry point, bundled by `addon-kit deploy`.
-    "main": "index.js",
+    "main": "src/function/index.ts",
 
     "oauth": {
         "scope": "read_jobs read_attachments manage_attachments"
@@ -22,7 +22,7 @@
 
     // Settings → Preferences → Add-ons in ServiceM8 (web): the function gets them in event.preferences.
     // Addon Kit 1.3.1 warns that preferences have no effect; ServiceM8's manifest reference says otherwise.
-    // The default must match DEFAULT_NAME in index.js (a test checks).
+    // The default must match DEFAULT_NAME in src/function/page.ts (a test checks).
     "preferences": [
         {
             "key": "pdf_name",

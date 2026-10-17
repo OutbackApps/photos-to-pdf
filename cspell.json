@@ -12,6 +12,7 @@
         "addon",
         "avif",
         "bitwarden",
+        "bunfig",
         "bunx",
         "bwignore",
         "dashlane",
@@ -37,6 +38,7 @@
         "sonarqube",
         "sonarsource",
         "startxref",
+        "stylesheet",
         "webp",
         "yoavbls",
         "yzhang"

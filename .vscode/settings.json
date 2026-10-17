@@ -10,10 +10,11 @@
         "files.trimTrailingWhitespace": false
     },
 
-    // Not searched or watched: installed packages, Bun's lockfile and the downloaded test browser.
+    // Not searched or watched: installed packages, Bun's lockfile, the downloaded test browser and the built popup.
     "search.exclude": {
         "node_modules": true,
         "bun.lock": true,
-        ".cache": true
+        ".cache": true,
+        "**/*.gen.ts": true
     }
 }

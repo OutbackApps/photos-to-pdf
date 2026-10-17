@@ -1,6 +1,8 @@
 node_modules/
-# The test browser (scripts/browser.js), downloaded by bun install.
+# The test browser (scripts/browser.ts), downloaded by bun install.
 .cache/
+# The popup as built from src/page (scripts/build-page.ts), served by the function.
+*.gen.ts
 *.log
 .env
 .env.*

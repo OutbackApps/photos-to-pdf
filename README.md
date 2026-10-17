@@ -34,17 +34,42 @@ Once they're saved, the popup says which PDFs were saved and to reopen the job t
 
 ## Files
 
+TypeScript, run by Bun (it runs TypeScript as it is) and type checked with `bun run typecheck`.
+
+```
+src/
+  function/          the function: runs in ServiceM8 (Node.js 24), bundled by Addon Kit
+    index.ts         the handler: each event and what answers it
+    servicem8.ts     the ServiceM8 API, uploads
+    photos.ts        listing a job's photos; passing photos and files through
+    page.ts          the popup's HTML, with its built script and styles
+    log.ts           structured logs (bun run tail)
+  page/              the popup: runs in the browser, bundled into one script by scripts/build-page.ts
+    main.ts          starts it: loads the job's photos
+    env.ts, api.ts   its page and ServiceM8's SDK; calling the function and the ServiceM8 API
+    store.ts         its state: the job, photos, PDFs, view, selection, where saving's up to
+    groups.ts        the PDFs and Left out
+    render.ts        drawing it, and keeping it up to date; done.ts: the finished view
+    arrange.ts       selecting and dragging photos
+    names/           the PDF names: the template, name boxes, field suggestions, "?" help
+    photos/          loading photos, thumbnails, photos from this device
+    pdf/             JPEGs, compressing photos, making pages, writing the PDF file
+    save.ts          saving the PDFs (in parts if need be); upload.ts: adding files to the job
+    peek.ts          Enlarge on hover; duplicates.ts: the Duplicate tag
+    styles.css       its styles (on top of ServiceM8's sdk.css)
+  shared/types.ts    what the function and the popup send each other
+scripts/             build-page.ts (the popup's script), browser.ts (the test browser)
+test/                function.test.ts, popup.test.ts (in the test browser), template.test.ts
+```
+
 | File | What it is |
 | --- | --- |
-| `addon.jsonc` | The add-on's config for [Addon Kit](https://www.npmjs.com/package/@servicem8/addon-kit): its slug, its manifest (the **Photos to PDF** job card button on the web and in the app, and the permissions it needs) and the function's entry point. |
-| `index.js` | The function: the events the popup and job card call, and the ServiceM8 API calls. No runtime dependencies; ServiceM8 runs it on Node.js 24. |
-| `page.js` | The popup: its styles (on top of ServiceM8's add-on stylesheet, sdk.css, as ServiceM8 asks), and the code that runs in the browser (sent to the page by `index.js`). |
+| `addon.jsonc` | The add-on's config for [Addon Kit](https://www.npmjs.com/package/@servicem8/addon-kit): its slug, its manifest (the **Photos to PDF** job card button on the web and in the app, the permissions it needs and the PDF name preference) and the function's entry point, `src/function/index.ts`. |
 | `icon.png` | The job card button's icon, linked from `addon.jsonc`. |
 | `docs/` | The help pages and privacy policy for customers, published with GitHub Pages at https://outbackapps.github.io/photos-to-pdf/ (Settings → Pages → main, /docs). Keep them up to date with the add-on. |
 | `store-listing.md` | What to enter for the Add-on Store listing, and the checklist before submitting. |
-| `package.json`, `bun.lock` | The versions of Bun, the packages (Addon Kit, the spell checker, the test tools) and the test browser, and the scripts below. |
-| `test/` | Tests (no ServiceM8 account needed): `handler.test.js` for the function, `browser.test.js` for the popup in a real browser. |
-| `scripts/browser.js` | Downloads the test browser (run by `bun install`). |
+| `package.json`, `bun.lock` | The versions of Bun, the packages (Addon Kit, TypeScript, the spell checker, the test tools) and the test browser, and the scripts below. |
+| `tsconfig.json`, `bunfig.toml` | Type checking (strict, as in outback-workbench), and building the popup before the tests. |
 | `CLAUDE.md` | The project's commands and rules, for Claude Code. |
 
 ## Development
@@ -70,12 +95,13 @@ Everything the project needs comes with the repo or `bun install`, at fixed vers
 
 ```sh
 bun install       # packages and the test browser
-bun test          # the tests
+bun test          # the tests (the popup's built first)
+bun run typecheck # TypeScript
 bun run spell     # spelling
-bun run check     # validate addon.jsonc and bundle the function, without deploying
+bun run check     # build, validate addon.jsonc and bundle the function, without deploying
 ```
 
-The tests pretend to be ServiceM8 (its API, its photo storage and its SDK), so they need no account. `handler.test.js` covers the function. `browser.test.js` opens the popup in the test browser, with its calls to the function running `index.js` itself: it leaves photos out, drags them between PDFs, names them, saves, and opens the saved PDFs with pdf.js to check every page (JPEGs byte for byte, the right way round). It loads ServiceM8's real sdk.css when it can be fetched. `BROWSER_PATH` runs it in another browser instead. The tests run with Bun, but the function itself runs on Node.js in ServiceM8, so `index.js` and `page.js` only use what both have. GitHub Actions runs the tests, spelling and `bun run check` on every push, in the same browser.
+The tests pretend to be ServiceM8 (its API, its photo storage and its SDK), so they need no account. `function.test.ts` covers the function and `template.test.ts` the PDF name's template. `popup.test.ts` opens the popup in the test browser, with its calls to the function running `src/function` itself: it leaves photos out, drags them between PDFs, names them, saves, and opens the saved PDFs with pdf.js to check every page (JPEGs byte for byte, the right way round). It loads ServiceM8's real sdk.css when it can be fetched. `BROWSER_PATH` runs it in another browser instead. The tests run with Bun, but the function itself runs on Node.js in ServiceM8, so `src/function` only uses what both have. The popup's script is built from `src/page` (`bun run build`) before the tests, the type check, `bun run check` and `bun run deploy`, into `src/function/page-assets.gen.ts` (not in the repo). GitHub Actions runs the type check, tests, spelling and `bun run check` on every push, in the same browser.
 
 ## Add-on Store
 
@@ -90,7 +116,7 @@ The add-on is deployed with ServiceM8's [Addon Kit](https://developer.servicem8.
    bun run login    # the scopes are in this script; update it if addon.jsonc's change
    bun run whoami
    ```
-2. Deploy. This bundles `index.js` (with `page.js`), creates or updates the add-on with the slug `photos-to-pdf`, and activates it on your account straight away:
+2. Deploy. This builds the popup, bundles `src/function` with it, creates or updates the add-on with the slug `photos-to-pdf`, and activates it on your account straight away:
    ```sh
    bun run deploy
    ```

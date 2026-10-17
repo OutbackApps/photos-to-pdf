@@ -1,0 +1,3 @@
+[test]
+# The popup is built (scripts/build-page.ts) before the tests run, so they always test src/page as it is.
+preload = ["./test/setup.ts"]
